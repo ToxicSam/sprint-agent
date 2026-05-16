@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-10T02:19:35.347659",
+  "entries": [
+    {
+      "id": "s1",
+      "member_id": "m_1",
+      "sprint_id": "sprint_1",
+      "task_id": null,
+      "dimension": "collab_ownership",
+      "dimension_name": "周边协同 — 团队主人翁意识",
+      "star": {
+        "situation": "test",
+        "task": "test",
+        "action": "test",
+        "result": "test",
+        "review": ""
+      },
+      "source": "interview",
+      "extracted_at": "2026-05-09T18:28:53.670377",
+      "confirmed": false,
+      "quality_score": 0.85,
+      "interview_session_id": null
+    }
+  ]
+}

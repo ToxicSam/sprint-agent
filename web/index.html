@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Agent 看板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: auto;
+        }
+        
+        .header {
+            padding: 16px 24px;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .sprint-info {
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .btn:hover { background: rgba(255,255,255,0.3); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-primary { background: #5aac44; }
+        .btn-primary:hover { background: #519839; }
+        
+        .stats-bar {
+            display: flex;
+            gap: 24px;
+            padding: 12px 24px;
+            background: rgba(0,0,0,0.15);
+            color: white;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .stat-value { font-weight: 700; font-size: 16px; }
+        
+        .board {
+            display: flex;
+            gap: 16px;
+            padding: 24px;
+            min-height: calc(100vh - 140px);
+            align-items: flex-start;
+        }
+        
+        .list {
+            background: #ebecf0;
+            border-radius: 12px;
+            width: 320px;
+            min-width: 320px;
+            max-height: calc(100vh - 160px);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .list-header {
+            padding: 16px 16px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .list-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: #172b4d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .list-count {
+            background: rgba(0,0,0,0.1);
+            color: #5e6c84;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .cards-container {
+            padding: 0 12px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 40px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: grab;
+            transition: transform 0.15s, box-shadow 0.15s;
+            position: relative;
+            border-left: 4px solid transparent;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .card.dragging {
+            opacity: 0.5;
+            transform: rotate(3deg);
+            cursor: grabbing;
+        }
+        
+        .card.priority-high { border-left-color: #eb5a46; }
+        .card.priority-medium { border-left-color: #f2d600; }
+        .card.priority-low { border-left-color: #61bd4f; }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+        
+        .card-title {
+            font-size: 14px;
+            color: #172b4d;
+            line-height: 1.5;
+            flex: 1;
+            word-break: break-word;
+        }
+        
+        .card-priority {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .priority-high .card-priority { background: #eb5a4620; color: #eb5a46; }
+        .priority-medium .card-priority { background: #f2d60020; color: #c4a800; }
+        .priority-low .card-priority { background: #61bd4f20; color: #519839; }
+        
+        .card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #5e6c84;
+            align-items: center;
+        }
+        
+        .card-labels {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .label {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .label-public { background: #e4f0f6; color: #0079bf; }
+        .label-private { background: #e8e8e8; color: #5e6c84; }
+        .label-blocked { background: #ffebe6; color: #eb5a46; }
+        .label-overdue { background: #ffebe6; color: #eb5a46; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        
+        .progress-fill.low { background: #eb5a46; }
+        .progress-fill.medium { background: #f2d600; }
+        .progress-fill.high { background: #61bd4f; }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-overlay.active { display: flex; }
+        
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #ebecf0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #172b4d;
+            flex: 1;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #5e6c84;
+        }
+        
+        .modal-body { padding: 20px 24px; }
+        
+        .modal-section { margin-bottom: 20px; }
+        .modal-section h3 {
+            font-size: 14px;
+            color: #5e6c84;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        
+        .detail-label { color: #5e6c84; }
+        .detail-value { color: #172b4d; font-weight: 500; }
+        
+        .blocker-alert {
+            background: #ffebe6;
+            border: 1px solid #eb5a46;
+            border-radius: 8px;
+            padding: 12px;
+            color: #eb5a46;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #5e6c84;
+            font-size: 14px;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .toast.show { opacity: 1; }
+        .toast.success { background: #5aac44; }
+        .toast.error { background: #eb5a46; }
+        .toast.info { background: #0079bf; }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1500;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .loading-overlay.active { display: flex; }
+        
+        .drop-placeholder {
+            background: rgba(0,0,0,0.05);
+            border: 2px dashed rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            min-height: 60px;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
+        
+        @media (max-width: 768px) {
+            .board { padding: 12px; }
+            .list { width: 280px; min-width: 280px; }
+            .stats-bar { flex-wrap: wrap; gap: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>📋 Sprint Agent 看板</h1>
+            <span class="sprint-info" id="sprintInfo">加载中...</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn" onclick="loadData()" id="refreshBtn">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="showAddTaskModal()">➕ 新建任务</button>
+        </div>
+    </div>
+    
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><span>成员:</span><span class="stat-value" id="statMembers">-</span></div>
+        <div class="stat-item"><span>任务:</span><span class="stat-value" id="statTasks">-</span></div>
+        <div class="stat-item"><span>已完成:</span><span class="stat-value" id="statCompleted">-</span></div>
+        <div class="stat-item"><span>进行中:</span><span class="stat-value" id="statInProgress">-</span></div>
+        <div class="stat-item"><span>总预估:</span><span class="stat-value" id="statEstimate">-</span></div>
+        <div class="stat-item"><span>已投入:</span><span class="stat-value" id="statSpent">-</span></div>
+        <div class="stat-item"><span>阻塞:</span><span class="stat-value" id="statBlocked">-</span></div>
+        <div class="stat-item"><span>完成率:</span><span class="stat-value" id="statRate">-</span></div>
+    </div>
+    
+    <div class="board" id="board">
+        <div class="empty-state">加载中...</div>
+    </div>
+    
+    <!-- 卡片详情模态框 -->
+    <div class="modal-overlay" id="cardModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">卡片详情</div>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+    
+    <!-- 新建任务模态框 -->
+    <div class="modal-overlay" id="addTaskModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">新建任务</div>
+                <button class="modal-close" onclick="closeAddTaskModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3>任务名称</h3>
+                    <input type="text" id="newTaskName" style="width:100%;padding:10px;border:2px solid #dfe1e6;border-radius:8px;font-size:14px;outline:none;" placeholder="输入任务名称">
+                </div>
+                <div class="modal-section">
+                    <h3>负责人</h3>
+                    <select id="newTaskOwner" style="width:100%;padding:10px;border:2px solid #dfe1e6;border-radius:8px;font-size:14px;outline:none;"></select>
+                </div>
+                <div class="modal-section">
+                    <h3>预估工作量 (人天)</h3>
+                    <div style="display:flex;gap:12px;">
+                        <input type="number" id="newTaskLow" style="flex:1;padding:10px;border:2px solid #dfe1e6;border-radius:8px;font-size:14px;outline:none;" placeholder="低头预估" step="0.1">
+                        <input type="number" id="newTaskHigh" style="flex:1;padding:10px;border:2px solid #dfe1e6;border-radius:8px;font-size:14px;outline:none;" placeholder="抬头预估" step="0.1">
+                    </div>
+                </div>
+                <div class="modal-section">
+                    <h3>优先级</h3>
+                    <input type="range" id="newTaskPriority" min="1" max="10" value="5" style="width:100%;">
+                    <div style="text-align:center;margin-top:4px;" id="priorityValue">5</div>
+                </div>
+                <div class="modal-section">
+                    <h3>截止日期</h3>
+                    <input type="date" id="newTaskDDL" style="width:100%;padding:10px;border:2px solid #dfe1e6;border-radius:8px;font-size:14px;outline:none;">
+                </div>
+                <div class="modal-section">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="newTaskPublic">
+                        <span>公共任务</span>
+                    </label>
+                </div>
+            </div>
+            <div style="padding:0 24px 24px;display:flex;gap:12px;">
+                <button class="btn btn-primary" onclick="submitNewTask()">创建</button>
+                <button class="btn" onclick="closeAddTaskModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    <div class="loading-overlay" id="loading">加载中...</div>
+
+    <script>
+        const API_BASE = '/api';
+        
+        const STATUS_MAP = {
+            'not_started': { title: '📋 未开始', key: 'not_started' },
+            'in_progress': { title: '🏃 进行中', key: 'in_progress' },
+            'completed': { title: '✅ 已完成', key: 'completed' },
+            'paused': { title: '⏸️ 挂起', key: 'paused' }
+        };
+        
+        let sprintData = null;
+        let currentDraggedCard = null;
+        let members = [];
+        
+        async function api(method, path, body = null) {
+            const options = { method, headers: {} };
+            if (body) {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(body);
+            }
+            const res = await fetch(`${API_BASE}${path}`, options);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || err.message || '请求失败');
+            }
+            return res.json();
+        }
+        
+        async function loadData() {
+            showLoading(true);
+            try {
+                const data = await api('GET', '/board');
+                sprintData = data.sprint;
+                render();
+                showToast('刷新成功', 'success');
+            } catch (err) {
+                showToast(err.message, 'error');
+                document.getElementById('board').innerHTML = `
+                    <div class="empty-state">
+                        <div style="font-size:48px;margin-bottom:12px;">❌</div>
+                        <p>加载失败: ${err.message}</p>
+                        <p style="margin-top:8px;font-size:12px;">请确保 API 服务已启动</p>
+                    </div>
+                `;
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function render() {
+            if (!sprintData) {
+                document.getElementById('sprintInfo').textContent = '无活跃 Sprint';
+                return;
+            }
+            
+            document.getElementById('sprintInfo').textContent = 
+                `${sprintData.name} (${sprintData.start_date} ~ ${sprintData.end_date})`;
+            
+            members = sprintData.members || [];
+            updateMemberSelect();
+            
+            const allTasks = [...(sprintData.tasks || []), ...(sprintData.public_tasks || [])];
+            const stats = calculateStats(allTasks);
+            updateStats(stats);
+            
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            const tasksByStatus = {};
+            Object.keys(STATUS_MAP).forEach(key => tasksByStatus[key] = []);
+            allTasks.forEach(task => {
+                const status = task.status || 'not_started';
+                if (tasksByStatus[status]) tasksByStatus[status].push(task);
+            });
+            
+            Object.keys(STATUS_MAP).forEach(statusKey => {
+                const list = createList(statusKey, STATUS_MAP[statusKey].title, tasksByStatus[statusKey]);
+                board.appendChild(list);
+            });
+            
+            bindDragEvents();
+        }
+        
+        function createList(statusKey, title, tasks) {
+            const list = document.createElement('div');
+            list.className = 'list';
+            list.dataset.status = statusKey;
+            
+            const cardsHtml = tasks.length > 0 
+                ? tasks.map(task => createCardHtml(task)).join('')
+                : '<div class="empty-state" style="padding:20px;"><p>无任务</p></div>';
+            
+            list.innerHTML = `
+                <div class="list-header">
+                    <div class="list-title">
+                        ${title}
+                        <span class="list-count">${tasks.length}</span>
+                    </div>
+                </div>
+                <div class="cards-container" data-status="${statusKey}">
+                    ${cardsHtml}
+                </div>
+            `;
+            
+            const container = list.querySelector('.cards-container');
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('drop', handleDrop);
+            container.addEventListener('dragenter', handleDragEnter);
+            container.addEventListener('dragleave', handleDragLeave);
+            
+            return list;
+        }
+        
+        function createCardHtml(task) {
+            const priority = getPriority(task.priority);
+            const progress = calculateProgress(task);
+            const owner = getMemberName(task.owner_id);
+            const isBlocked = task.blocker || (task.daily_logs && task.daily_logs.some(log => log.blocker));
+            const isOverdue = task.ddl && new Date(task.ddl) < new Date() && task.status !== 'completed';
+            
+            let blockerText = task.blocker || '';
+            if (!blockerText && task.daily_logs) {
+                const logs = [...task.daily_logs].reverse();
+                const latest = logs.find(l => l.blocker);
+                if (latest) blockerText = latest.blocker;
+            }
+            
+            return `
+                <div class="card priority-${priority.key}" draggable="true" data-task-id="${task.id}" onclick="openCardDetail('${task.id}')">
+                    <div class="card-header">
+                        <div class="card-title">${escapeHtml(task.name)}</div>
+                        <span class="card-priority">${priority.label}</span>
+                    </div>
+                    <div class="card-labels">
+                        ${task.is_public ? '<span class="label label-public">公共</span>' : '<span class="label label-private">个人</span>'}
+                        ${isBlocked ? '<span class="label label-blocked">⚠️ 阻塞</span>' : ''}
+                        ${isOverdue ? '<span class="label label-overdue">⏰ 逾期</span>' : ''}
+                    </div>
+                    <div class="card-meta">
+                        ${owner ? `<span>👤 ${owner}</span>` : ''}
+                        ${task.estimate_high ? `<span>⏱️ ${(task.total_spent || 0).toFixed(1)}/${task.estimate_high}人天</span>` : ''}
+                        ${task.ddl ? `<span>📅 ${task.ddl.slice(5)}</span>` : ''}
+                    </div>
+                    ${progress > 0 ? `
+                        <div class="progress-bar">
+                            <div class="progress-fill ${progress > 80 ? 'high' : progress > 50 ? 'medium' : 'low'}" style="width: ${progress}%"></div>
+                        </div>
+                    ` : ''}
+                    ${blockerText ? `<div style="margin-top:8px;font-size:12px;color:#eb5a46;">⚠️ ${escapeHtml(blockerText)}</div>` : ''}
+                </div>
+            `;
+        }
+        
+        function getPriority(value) {
+            if (value >= 7) return { key: 'high', label: '高' };
+            if (value >= 4) return { key: 'medium', label: '中' };
+            return { key: 'low', label: '低' };
+        }
+        
+        function calculateProgress(task) {
+            if (!task.estimate_high || task.estimate_high === 0) return 0;
+            const spent = task.total_spent || 0;
+            return Math.min(100, Math.round((spent / task.estimate_high) * 100));
+        }
+        
+        function getMemberName(memberId) {
+            if (!members) return '';
+            const m = members.find(m => m.id === memberId);
+            return m ? m.name : memberId;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function calculateStats(tasks) {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+            const notStarted = tasks.filter(t => t.status === 'not_started').length;
+            const paused = tasks.filter(t => t.status === 'paused').length;
+            const totalEstimate = tasks.reduce((s, t) => s + (t.estimate_high || 0), 0);
+            const totalSpent = tasks.reduce((s, t) => s + (t.total_spent || 0), 0);
+            const blocked = tasks.filter(t => t.blocker || (t.daily_logs && t.daily_logs.some(l => l.blocker))).length;
+            return { total, completed, in_progress: inProgress, not_started: notStarted, paused, total_estimate: totalEstimate, total_spent: totalSpent, blocked, completion_rate: total > 0 ? Math.round(completed / total * 100) : 0 };
+        }
+        
+        function updateStats(stats) {
+            document.getElementById('statMembers').textContent = members.length;
+            document.getElementById('statTasks').textContent = stats.total;
+            document.getElementById('statCompleted').textContent = stats.completed;
+            document.getElementById('statInProgress').textContent = stats.in_progress;
+            document.getElementById('statEstimate').textContent = stats.total_estimate.toFixed(1);
+            document.getElementById('statSpent').textContent = stats.total_spent.toFixed(1);
+            document.getElementById('statBlocked').textContent = stats.blocked;
+            document.getElementById('statRate').textContent = stats.completion_rate + '%';
+        }
+        
+        // 拖拽
+        function bindDragEvents() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragend', handleDragEnd);
+            });
+        }
+        
+        function handleDragStart(e) {
+            currentDraggedCard = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+            const container = e.target.closest('.cards-container');
+            if (!container) return;
+            const afterElement = getDragAfterElement(container, e.clientY);
+            const placeholder = document.querySelector('.drop-placeholder') || createPlaceholder();
+            if (afterElement) container.insertBefore(placeholder, afterElement);
+            else container.appendChild(placeholder);
+        }
+        
+        function handleDragEnter(e) { e.preventDefault(); }
+        function handleDragLeave(e) {
+            if (e.target.classList.contains('cards-container')) {
+                document.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
+            }
+        }
+        
+        async function handleDrop(e) {
+            e.preventDefault();
+            const container = e.target.closest('.cards-container');
+            if (!container || !currentDraggedCard) return;
+            
+            const targetStatus = container.dataset.status;
+            const taskId = currentDraggedCard.dataset.taskId;
+            const sourceStatus = currentDraggedCard.closest('.cards-container').dataset.status;
+            
+            if (sourceStatus === targetStatus) return;
+            
+            showLoading(true);
+            try {
+                await api('PATCH', `/tasks/${taskId}/status`, { status: targetStatus });
+                showToast('状态更新成功', 'success');
+                await loadData();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function createPlaceholder() {
+            const el = document.createElement('div');
+            el.className = 'drop-placeholder';
+            return el;
+        }
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        
+        // 卡片详情
+        async function openCardDetail(taskId) {
+            if (!sprintData) return;
+            const allTasks = [...(sprintData.tasks || []), ...(sprintData.public_tasks || [])];
+            const task = allTasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const owner = getMemberName(task.owner_id);
+            const progress = calculateProgress(task);
+            
+            let blockerText = task.blocker || '';
+            if (!blockerText && task.daily_logs) {
+                const logs = [...task.daily_logs].reverse();
+                const latest = logs.find(l => l.blocker);
+                if (latest) blockerText = latest.blocker;
+            }
+            
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                ${blockerText ? `
+                    <div class="modal-section">
+                        <div class="blocker-alert">
+                            <span>⚠️</span>
+                            <span>${escapeHtml(blockerText)}</span>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="modal-section">
+                    <h3>基本信息</h3>
+                    <div class="detail-row"><span class="detail-label">状态</span><span class="detail-value">${STATUS_MAP[task.status]?.title || task.status}</span></div>
+                    <div class="detail-row"><span class="detail-label">负责人</span><span class="detail-value">${owner || '-'}</span></div>
+                    <div class="detail-row"><span class="detail-label">类型</span><span class="detail-value">${task.is_public ? '公共任务' : '个人任务'}</span></div>
+                    <div class="detail-row"><span class="detail-label">优先级</span><span class="detail-value">${task.priority || '-'}</span></div>
+                    <div class="detail-row"><span class="detail-label">截止日期</span><span class="detail-value">${task.ddl || '-'}</span></div>
+                </div>
+                <div class="modal-section">
+                    <h3>工作量</h3>
+                    <div class="detail-row"><span class="detail-label">预估 (低~高)</span><span class="detail-value">${(task.estimate_low || 0).toFixed(1)} ~ ${(task.estimate_high || 0).toFixed(1)} 人天</span></div>
+                    <div class="detail-row"><span class="detail-label">已投入</span><span class="detail-value">${(task.total_spent || 0).toFixed(1)} 人天</span></div>
+                    <div class="detail-row"><span class="detail-label">完成度</span><span class="detail-value">${progress}%</span></div>
+                    ${progress > 0 ? `
+                        <div class="progress-bar" style="margin-top:8px;">
+                            <div class="progress-fill ${progress > 80 ? 'high' : progress > 50 ? 'medium' : 'low'}" style="width: ${progress}%"></div>
+                        </div>
+                    ` : ''}
+                </div>
+                ${task.daily_logs && task.daily_logs.length > 0 ? `
+                    <div class="modal-section">
+                        <h3>日报记录 (${task.daily_logs.length}条)</h3>
+                        ${task.daily_logs.map(log => `
+                            <div style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;">
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>${log.date}</span>
+                                    <span>${log.hours}h (${log.progress_percent || 0}%)</span>
+                                </div>
+                                ${log.blocker ? `<div style="color: #eb5a46; margin-top: 4px;">⚠️ ${escapeHtml(log.blocker)}</div>` : ''}
+                                ${log.notes ? `<div style="color: #5e6c84; margin-top: 4px;">${escapeHtml(log.notes)}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                <div class="modal-section">
+                    <h3>时间线</h3>
+                    <div class="detail-row"><span class="detail-label">创建时间</span><span class="detail-value">${task.created_at ? new Date(task.created_at).toLocaleString('zh-CN') : '-'}</span></div>
+                    ${task.completed_at ? `<div class="detail-row"><span class="detail-label">完成时间</span><span class="detail-value">${new Date(task.completed_at).toLocaleString('zh-CN')}</span></div>` : ''}
+                    ${task.paused_at ? `<div class="detail-row"><span class="detail-label">挂起时间</span><span class="detail-value">${new Date(task.paused_at).toLocaleString('zh-CN')}</span></div>` : ''}
+                </div>
+            `;
+            
+            document.getElementById('modalTitle').textContent = task.name;
+            document.getElementById('cardModal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('cardModal').classList.remove('active');
+        }
+        
+        // 新建任务
+        function showAddTaskModal() {
+            document.getElementById('addTaskModal').classList.add('active');
+            document.getElementById('newTaskName').focus();
+        }
+        
+        function closeAddTaskModal() {
+            document.getElementById('addTaskModal').classList.remove('active');
+            document.getElementById('newTaskName').value = '';
+            document.getElementById('newTaskLow').value = '';
+            document.getElementById('newTaskHigh').value = '';
+            document.getElementById('newTaskPriority').value = '5';
+            document.getElementById('priorityValue').textContent = '5';
+            document.getElementById('newTaskDDL').value = '';
+            document.getElementById('newTaskPublic').checked = false;
+        }
+        
+        function updateMemberSelect() {
+            const select = document.getElementById('newTaskOwner');
+            select.innerHTML = members.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        }
+        
+        document.getElementById('newTaskPriority').addEventListener('input', function() {
+            document.getElementById('priorityValue').textContent = this.value;
+        });
+        
+        async function submitNewTask() {
+            const name = document.getElementById('newTaskName').value.trim();
+            const owner = document.getElementById('newTaskOwner').value;
+            const low = parseFloat(document.getElementById('newTaskLow').value);
+            const high = parseFloat(document.getElementById('newTaskHigh').value);
+            const priority = parseInt(document.getElementById('newTaskPriority').value);
+            const ddl = document.getElementById('newTaskDDL').value || null;
+            const isPublic = document.getElementById('newTaskPublic').checked;
+            
+            if (!name || !owner || isNaN(low) || isNaN(high)) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                await api('POST', '/tasks', {
+                    name, owner_name: owner,
+                    estimate_low: low, estimate_high: high,
+                    priority, ddl, is_public: isPublic
+                });
+                showToast('任务创建成功', 'success');
+                closeAddTaskModal();
+                await loadData();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+        }
+        
+        // 事件监听
+        document.getElementById('cardModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+        document.getElementById('addTaskModal').addEventListener('click', function(e) {
+            if (e.target === this) closeAddTaskModal();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeAddTaskModal();
+            }
+        });
+        
+        // 初始化
+        loadData();
+    </script>
+</body>
+</html>
