@@ -1,0 +1,395 @@
+{
+  "sprints": [
+    {
+      "id": "spr-001",
+      "name": "Sprint 26.05 — AI Assistant Refactor",
+      "goal": "Refactor the AI assistant architecture to improve response latency and add context memory",
+      "start_date": "2025-05-01",
+      "end_date": "2025-05-14",
+      "status": "active",
+      "created_at": "2025-05-01T08:00:00Z"
+    },
+    {
+      "id": "spr-000",
+      "name": "Sprint 26.04 — Foundation",
+      "goal": "Set up project scaffolding and CI/CD pipeline",
+      "start_date": "2025-04-15",
+      "end_date": "2025-04-30",
+      "status": "completed",
+      "created_at": "2025-04-15T08:00:00Z"
+    }
+  ],
+  "members": [
+    {
+      "id": "mem-001",
+      "name": "Sarah Chen",
+      "role": "sm",
+      "capacity": 4.0,
+      "avatar": "SC",
+      "created_at": "2025-04-15T08:00:00Z"
+    },
+    {
+      "id": "mem-002",
+      "name": "Alex Rivera",
+      "role": "dev",
+      "capacity": 8.0,
+      "avatar": "AR",
+      "created_at": "2025-04-15T08:00:00Z"
+    },
+    {
+      "id": "mem-003",
+      "name": "Jordan Patel",
+      "role": "dev",
+      "capacity": 8.0,
+      "avatar": "JP",
+      "created_at": "2025-04-15T08:00:00Z"
+    },
+    {
+      "id": "mem-004",
+      "name": "Morgan Lee",
+      "role": "qa",
+      "capacity": 6.0,
+      "avatar": "ML",
+      "created_at": "2025-04-15T08:00:00Z"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-001",
+      "sprint_id": "spr-001",
+      "title": "Design new agent intent classification module",
+      "assignee_id": "mem-002",
+      "status": "done",
+      "priority": 10,
+      "story_points": 5.0,
+      "blocked_by": null,
+      "description": "Create the rule-based intent classifier with keyword matching and entity extraction",
+      "created_at": "2025-05-01T09:00:00Z",
+      "updated_at": "2025-05-03T16:00:00Z"
+    },
+    {
+      "id": "task-002",
+      "sprint_id": "spr-001",
+      "title": "Implement SQLite schema with SQLAlchemy 2.0",
+      "assignee_id": "mem-003",
+      "status": "done",
+      "priority": 10,
+      "story_points": 8.0,
+      "blocked_by": null,
+      "description": "Set up all tables: sprints, members, tasks, daily_logs, retros, ratings, agent_messages, config",
+      "created_at": "2025-05-01T09:00:00Z",
+      "updated_at": "2025-05-02T15:00:00Z"
+    },
+    {
+      "id": "task-003",
+      "sprint_id": "spr-001",
+      "title": "Build FastAPI routers for sprint and tasks",
+      "assignee_id": "mem-002",
+      "status": "progress",
+      "priority": 9,
+      "story_points": 5.0,
+      "blocked_by": null,
+      "description": "CRUD endpoints for sprint and task management with filtering and bulk updates",
+      "created_at": "2025-05-01T09:30:00Z",
+      "updated_at": "2025-05-05T10:00:00Z"
+    },
+    {
+      "id": "task-004",
+      "sprint_id": "spr-001",
+      "title": "Implement standup batch submit endpoint",
+      "assignee_id": "mem-003",
+      "status": "progress",
+      "priority": 8,
+      "story_points": 3.0,
+      "blocked_by": null,
+      "description": "Allow multiple team members to submit daily logs in a single transaction",
+      "created_at": "2025-05-01T09:30:00Z",
+      "updated_at": "2025-05-06T11:00:00Z"
+    },
+    {
+      "id": "task-005",
+      "sprint_id": "spr-001",
+      "title": "Add retro voting and rating system",
+      "assignee_id": "mem-001",
+      "status": "todo",
+      "priority": 7,
+      "story_points": 3.0,
+      "blocked_by": null,
+      "description": "Implement retro item categories (liked/disliked/action) with votes and dimension ratings",
+      "created_at": "2025-05-01T10:00:00Z",
+      "updated_at": "2025-05-01T10:00:00Z"
+    },
+    {
+      "id": "task-006",
+      "sprint_id": "spr-001",
+      "title": "Create import/export and reset services",
+      "assignee_id": "mem-003",
+      "status": "todo",
+      "priority": 7,
+      "story_points": 5.0,
+      "blocked_by": ["task-002"],
+      "description": "Build services to export full DB to JSON and reset from init.json",
+      "created_at": "2025-05-01T10:00:00Z",
+      "updated_at": "2025-05-01T10:00:00Z"
+    },
+    {
+      "id": "task-007",
+      "sprint_id": "spr-001",
+      "title": "Write QA test suite for API endpoints",
+      "assignee_id": "mem-004",
+      "status": "todo",
+      "priority": 8,
+      "story_points": 5.0,
+      "blocked_by": ["task-003", "task-004"],
+      "description": "Test all endpoints with pytest and httpx async client",
+      "created_at": "2025-05-02T08:00:00Z",
+      "updated_at": "2025-05-02T08:00:00Z"
+    },
+    {
+      "id": "task-008",
+      "sprint_id": "spr-001",
+      "title": "Setup CORS and frontend integration test",
+      "assignee_id": "mem-002",
+      "status": "todo",
+      "priority": 6,
+      "story_points": 2.0,
+      "blocked_by": null,
+      "description": "Enable CORS for frontend development and verify API connectivity",
+      "created_at": "2025-05-02T08:00:00Z",
+      "updated_at": "2025-05-02T08:00:00Z"
+    },
+    {
+      "id": "task-009",
+      "sprint_id": "spr-001",
+      "title": "Implement agent context builder",
+      "assignee_id": "mem-002",
+      "status": "paused",
+      "priority": 5,
+      "story_points": 3.0,
+      "blocked_by": ["task-001"],
+      "description": "Build context object with current sprint, recent tasks, and team members for the agent",
+      "created_at": "2025-05-03T09:00:00Z",
+      "updated_at": "2025-05-04T14:00:00Z"
+    },
+    {
+      "id": "task-010",
+      "sprint_id": "spr-001",
+      "title": "Design responsive dashboard layout",
+      "assignee_id": "mem-001",
+      "status": "progress",
+      "priority": 6,
+      "story_points": 3.0,
+      "blocked_by": null,
+      "description": "Wireframe the main dashboard with sprint stats, task board, and team view",
+      "created_at": "2025-05-03T09:00:00Z",
+      "updated_at": "2025-05-05T10:00:00Z"
+    }
+  ],
+  "daily_logs": [
+    {
+      "id": "log-001",
+      "sprint_id": "spr-001",
+      "member_id": "mem-002",
+      "date": "2025-05-06",
+      "completed": "Completed intent classification module design. Started FastAPI routers.",
+      "planned": "Finish sprint and task router CRUD. Begin agent context builder.",
+      "blockers": null,
+      "hours_spent": 7.5,
+      "created_at": "2025-05-06T17:00:00Z"
+    },
+    {
+      "id": "log-002",
+      "sprint_id": "spr-001",
+      "member_id": "mem-003",
+      "date": "2025-05-06",
+      "completed": "SQLite schema fully implemented. Standup batch endpoint in progress.",
+      "planned": "Complete batch submit. Start import/export service.",
+      "blockers": null,
+      "hours_spent": 8.0,
+      "created_at": "2025-05-06T17:00:00Z"
+    },
+    {
+      "id": "log-003",
+      "sprint_id": "spr-001",
+      "member_id": "mem-004",
+      "date": "2025-05-06",
+      "completed": "Reviewed DB schema and initial test plan. Updated QA checklist.",
+      "planned": "Start writing pytest suite once task endpoints are ready.",
+      "blockers": "Waiting for task-003 and task-004 to be completed before starting tests.",
+      "hours_spent": 5.0,
+      "created_at": "2025-05-06T17:00:00Z"
+    },
+    {
+      "id": "log-004",
+      "sprint_id": "spr-001",
+      "member_id": "mem-001",
+      "date": "2025-05-06",
+      "completed": "Facilitated sprint planning refinement. Updated dashboard wireframes.",
+      "planned": "Define retro voting criteria. Review PRs from Alex and Jordan.",
+      "blockers": null,
+      "hours_spent": 6.0,
+      "created_at": "2025-05-06T17:00:00Z"
+    },
+    {
+      "id": "log-005",
+      "sprint_id": "spr-001",
+      "member_id": "mem-002",
+      "date": "2025-05-05",
+      "completed": "Finished intent classifier prototype with 7 intent categories.",
+      "planned": "Design review with team. Begin router implementation.",
+      "blockers": null,
+      "hours_spent": 7.0,
+      "created_at": "2025-05-05T17:00:00Z"
+    },
+    {
+      "id": "log-006",
+      "sprint_id": "spr-001",
+      "member_id": "mem-003",
+      "date": "2025-05-05",
+      "completed": "Set up SQLAlchemy 2.0 declarative models and relationships.",
+      "planned": "Create Pydantic schemas and CRUD layer for all entities.",
+      "blockers": null,
+      "hours_spent": 8.0,
+      "created_at": "2025-05-05T17:00:00Z"
+    },
+    {
+      "id": "log-007",
+      "sprint_id": "spr-001",
+      "member_id": "mem-002",
+      "date": "2025-05-04",
+      "completed": "Researched existing NLP approaches for lightweight intent classification.",
+      "planned": "Draft rule-based classifier without external NLP libraries.",
+      "blockers": null,
+      "hours_spent": 6.0,
+      "created_at": "2025-05-04T17:00:00Z"
+    },
+    {
+      "id": "log-008",
+      "sprint_id": "spr-001",
+      "member_id": "mem-003",
+      "date": "2025-05-04",
+      "completed": "Reviewed FastAPI best practices and SQLAlchemy 2.0 migration guide.",
+      "planned": "Start database models and schema design.",
+      "blockers": null,
+      "hours_spent": 7.0,
+      "created_at": "2025-05-04T17:00:00Z"
+    }
+  ],
+  "retros": [
+    {
+      "id": "retro-001",
+      "sprint_id": "spr-000",
+      "category": "liked",
+      "item": "Daily standups were concise and actionable",
+      "votes": 4,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "retro-002",
+      "sprint_id": "spr-000",
+      "category": "liked",
+      "item": "CI/CD pipeline reduced deployment friction significantly",
+      "votes": 3,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "retro-003",
+      "sprint_id": "spr-000",
+      "category": "disliked",
+      "item": "Some stories were too large and spilled over",
+      "votes": 3,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "retro-004",
+      "sprint_id": "spr-000",
+      "category": "disliked",
+      "item": "Code review turnaround time was occasionally slow",
+      "votes": 2,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "retro-005",
+      "sprint_id": "spr-000",
+      "category": "action",
+      "item": "Break down stories into smaller tasks during planning",
+      "votes": 5,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "retro-006",
+      "sprint_id": "spr-000",
+      "category": "action",
+      "item": "Set 24-hour SLA for code review requests",
+      "votes": 4,
+      "created_at": "2025-04-30T16:00:00Z"
+    }
+  ],
+  "retro_ratings": [
+    {
+      "id": "rating-001",
+      "sprint_id": "spr-000",
+      "dimension": "velocity",
+      "score": 4,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "rating-002",
+      "sprint_id": "spr-000",
+      "dimension": "quality",
+      "score": 4,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "rating-003",
+      "sprint_id": "spr-000",
+      "dimension": "teamwork",
+      "score": 5,
+      "created_at": "2025-04-30T16:00:00Z"
+    },
+    {
+      "id": "rating-004",
+      "sprint_id": "spr-000",
+      "dimension": "process",
+      "score": 3,
+      "created_at": "2025-04-30T16:00:00Z"
+    }
+  ],
+  "agent_messages": [
+    {
+      "id": "msg-001",
+      "role": "system",
+      "content": "Sprint Agent initialized. I can help you manage tasks, check sprint stats, log standups, and submit retros.",
+      "context": null,
+      "created_at": "2025-05-01T08:00:00Z"
+    },
+    {
+      "id": "msg-002",
+      "role": "user",
+      "content": "Show me the sprint stats",
+      "context": null,
+      "created_at": "2025-05-06T10:00:00Z"
+    },
+    {
+      "id": "msg-003",
+      "role": "agent",
+      "content": "Sprint 'Sprint 26.05 — AI Assistant Refactor': 2/10 tasks done, 13/37 SP.",
+      "context": null,
+      "created_at": "2025-05-06T10:00:00Z"
+    }
+  ],
+  "config": [
+    {
+      "key": "team_name",
+      "value": "Agent Squad"
+    },
+    {
+      "key": "sprint_length_days",
+      "value": "14"
+    },
+    {
+      "key": "default_velocity",
+      "value": "35"
+    }
+  ]
+}
