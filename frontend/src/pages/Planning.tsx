@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, addDays, differenceInBusinessDays } from 'date-fns';
 import {
   Users, Plus, Trash2, Upload, Calendar, Target,
-  Zap, Clock, Save, ChevronDown, X, Check, Edit2,
+  Zap, Clock, Save, Edit2,
   FileJson, Table2, AlertTriangle, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+
 import {
   Select,
   SelectContent,
@@ -45,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store';
 import type { Member, MemberRole } from '@/types';
-import type { DateRange } from 'react-day-picker';
+
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ function MemberRow({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       onFinishEdit(member.id);
-    } else if (e.key === 'Tab' && e.currentTarget.dataset.field === 'coe') {
+    } else if (e.key === 'Tab' && (e.currentTarget as HTMLElement).dataset.field === 'coe') {
       e.preventDefault();
       onTabFromCoe();
     }
@@ -280,7 +280,7 @@ export default function Planning() {
   const navigate = useNavigate();
   const setBoardData = useStore((s) => s.setBoardData);
   const existingMembers = useStore((s) => s.members);
-  const existingSprint = useStore((s) => s.sprint);
+  void useStore((s) => s.sprint);
 
   // ── Form State ────────────────────────────
   const today = new Date();
@@ -318,7 +318,6 @@ export default function Planning() {
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmDesc, setConfirmDesc] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonFileRef = useRef<HTMLInputElement>(null);
 
   // ── Update workdays when dates change ─────
@@ -534,11 +533,6 @@ export default function Planning() {
   );
 
   const canCreate = form.name.trim().length > 0 && members.length > 0 && members.every((m) => m.name.trim());
-
-  const dateRange: DateRange = {
-    from: form.startDate,
-    to: form.endDate,
-  };
 
   // ── Render ────────────────────────────────
 

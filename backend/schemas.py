@@ -127,6 +127,15 @@ class BulkTaskResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Board (aggregated view)
+# ---------------------------------------------------------------------------
+class BoardResponse(BaseModel):
+    sprint: Optional[SprintResponse] = None
+    members: List[MemberResponse] = []
+    tasks: List[TaskResponse] = []
+
+
+# ---------------------------------------------------------------------------
 # Daily Log
 # ---------------------------------------------------------------------------
 class DailyLogBase(BaseModel):

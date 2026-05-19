@@ -54,10 +54,19 @@ export default function Dashboard() {
   const moveTask = useStore(s => s.moveTask);
   const selectedTaskId = useStore(s => s.selectedTaskId);
   const selectTask = useStore(s => s.selectTask);
+  const loadBoardData = useStore(s => s.loadBoardData);
+  const boardLoaded = useStore(s => s.boardLoaded);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Load board data from backend on mount
+  useEffect(() => {
+    if (!boardLoaded) {
+      loadBoardData();
+    }
+  }, [boardLoaded, loadBoardData]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

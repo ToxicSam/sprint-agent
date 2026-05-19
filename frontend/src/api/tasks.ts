@@ -24,8 +24,8 @@ export async function updateTask(id: string, patch: Partial<Task>): Promise<Task
 }
 
 export async function moveTask(id: string, status: string): Promise<Task> {
-  return apiFetch<Task>(`/api/tasks/${id}/status`, {
-    method: 'PATCH',
+  return apiFetch<Task>(`/api/tasks/${id}/move`, {
+    method: 'POST',
     body: JSON.stringify({ status }),
   });
 }

@@ -45,6 +45,14 @@ def reset_db(db: Session = Depends(get_db)):
     return {"reset": True}
 
 
+@router.get("/board", response_model=schemas.BoardResponse)
+def get_board(db: Session = Depends(get_db)):
+    sprint = crud.get_active_sprint(db)
+    members = crud.get_members(db)
+    tasks = crud.get_tasks(db, sprint_id=sprint.id if sprint else None)
+    return schemas.BoardResponse(sprint=sprint, members=members, tasks=tasks)
+
+
 @router.get("/health")
 def health():
     return {"status": "ok"}
