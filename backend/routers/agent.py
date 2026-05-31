@@ -1,6 +1,9 @@
+"""Async Agent router with LLM-powered intent classification."""
+
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import crud
 import schemas
@@ -12,7 +15,7 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 def _wrap_result(result: dict) -> schemas.AgentActionResult:
     """Wrap raw handle_intent result into AgentActionResult."""
-    payload = {
+    payload: Dict[str, Any] = {
         "success": result.get("success", False),
         "message": result.get("message", ""),
         "data": {},
@@ -24,18 +27,24 @@ def _wrap_result(result: dict) -> schemas.AgentActionResult:
 
 
 @router.post("/message", response_model=schemas.AgentActionResult)
-def agent_message(
+async def agent_message(
     msg: schemas.AgentMessageCreate,
-    db: Session = Depends(get_db),
-):
+    db: AsyncSession = Depends(get_db),
+) -> schemas.AgentActionResult:
     # Store user message
-    crud.create_agent_message(db, msg)
+    await crud.create_agent_message(db, msg)
 
-    intent, entities = classify_intent(msg.content)
-    result = handle_intent(db, intent, entities, msg.content)
+    # Build context for LLM
+    context = await build_context(db)
+
+    # Classify intent (LLM with regex fallback)
+    intent, entities, llm_response = await classify_intent(msg.content, context)
+
+    # Handle the intent
+    result = await handle_intent(db, intent, entities, msg.content, llm_response)
 
     # Store agent response
-    crud.create_agent_message(
+    await crud.create_agent_message(
         db,
         schemas.AgentMessageCreate(role="agent", content=result["message"]),
     )
@@ -44,19 +53,23 @@ def agent_message(
 
 
 @router.get("/history", response_model=List[schemas.AgentMessageResponse])
-def agent_history(db: Session = Depends(get_db)):
-    return crud.get_agent_messages(db, limit=50)
+async def agent_history(
+    db: AsyncSession = Depends(get_db),
+) -> List[schemas.AgentMessageResponse]:
+    return await crud.get_agent_messages(db, limit=50)
 
 
 @router.post("/action", response_model=schemas.AgentActionResult)
-def agent_action(
+async def agent_action(
     action: schemas.AgentAction,
-    db: Session = Depends(get_db),
-):
-    result = handle_intent(db, action.action, action.payload, "")
+    db: AsyncSession = Depends(get_db),
+) -> schemas.AgentActionResult:
+    result = await handle_intent(db, action.action, action.payload, "")
     return _wrap_result(result)
 
 
-@router.get("/context", response_model=Dict[str, Any])
-def agent_context(db: Session = Depends(get_db)):
-    return build_context(db)
+@router.get("/context")
+async def agent_context(
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    return await build_context(db)

@@ -40,3 +40,5 @@ coverage/
 # Temp
 tmp/
 temp/
+frontend/node_modules_old/
+backend/mock_server.py

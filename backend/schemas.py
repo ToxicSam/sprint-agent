@@ -1,7 +1,10 @@
-from datetime import datetime, date
-from typing import Optional, List, Dict, Any
+"""Pydantic v2 request/response models with JSON field compatibility."""
 
-from pydantic import BaseModel, ConfigDict
+import json
+from datetime import datetime, date
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -83,8 +86,18 @@ class TaskBase(BaseModel):
     status: str = "todo"
     priority: Optional[int] = None
     story_points: Optional[float] = None
-    blocked_by: Optional[str] = None
+    blocked_by: Optional[str] = None  # JSON string for API compatibility
     description: Optional[str] = None
+
+    @field_validator("blocked_by", mode="before")
+    @classmethod
+    def _validate_blocked_by(cls, v: Any) -> Optional[str]:
+        """Convert list (from JSON field) back to string for API compatibility."""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return json.dumps(v)
+        return v
 
 
 class TaskCreate(TaskBase):
@@ -100,6 +113,15 @@ class TaskUpdate(BaseModel):
     story_points: Optional[float] = None
     blocked_by: Optional[str] = None
     description: Optional[str] = None
+
+    @field_validator("blocked_by", mode="before")
+    @classmethod
+    def _validate_blocked_by(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return json.dumps(v)
+        return v
 
 
 class TaskResponse(TaskBase):
@@ -237,8 +259,18 @@ class AgentMessageResponse(BaseModel):
     id: str
     role: str
     content: str
-    context: Optional[str] = None
+    context: Optional[str] = None  # JSON string for API compatibility
     created_at: datetime
+
+    @field_validator("context", mode="before")
+    @classmethod
+    def _validate_context(cls, v: Any) -> Optional[str]:
+        """Convert dict (from JSON field) back to string for API compatibility."""
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return json.dumps(v, ensure_ascii=False)
+        return v
 
 
 class AgentAction(BaseModel):
@@ -293,3 +325,13 @@ class ExportData(BaseModel):
     retro_ratings: List[Dict[str, Any]]
     agent_messages: List[Dict[str, Any]]
     config: List[Dict[str, Any]]
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+class HealthResponse(BaseModel):
+    status: str
+    database: str
+    llm_configured: bool
+    version: str

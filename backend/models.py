@@ -1,3 +1,5 @@
+"""SQLAlchemy 2.0 declarative models with native JSON fields."""
+
 from datetime import datetime, date
 from typing import Optional, List
 import uuid
@@ -10,6 +12,7 @@ from sqlalchemy import (
     Float,
     Integer,
     ForeignKey,
+    JSON,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -64,7 +67,7 @@ class Task(Base):
     status: Mapped[str] = mapped_column(String, default="todo")
     priority: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     story_points: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    blocked_by: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array of task IDs
+    blocked_by: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # Native JSON array of task IDs
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -121,7 +124,7 @@ class AgentMessage(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     role: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
+    context: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Native JSON object
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

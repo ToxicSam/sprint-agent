@@ -1,25 +1,33 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+"""Async SQLAlchemy database engine and session management."""
+
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from models import Base
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sprint_agent.db"
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////tmp/sprint_agent.db"
 
-engine = create_engine(
+async_engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    # Enable WAL mode for better concurrent performance
+    echo=False,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = async_sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=async_engine,
+    class_=AsyncSession,
+)
 
 
-def create_tables():
-    Base.metadata.create_all(bind=engine)
+async def create_tables() -> None:
+    """Create all tables if they don't exist."""
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
-def get_db():
-    db = SessionLocal()
-    try:
+async def get_db() -> AsyncSession:
+    """Async generator yielding a database session."""
+    async with AsyncSessionLocal() as db:
         yield db
-    finally:
-        db.close()

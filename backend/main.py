@@ -1,26 +1,48 @@
+"""FastAPI async application with LLM-ready lifespan."""
+
+import asyncio
+import logging
+import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import create_tables, engine
+from database import async_engine, AsyncSessionLocal, create_tables
 from models import Base
 from services.import_service import load_init_data
-from sqlalchemy.orm import Session
 
 from routers import sprint, tasks, members, standup, retro, agent, settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    with Session(engine) as db:
-        load_init_data(db)
+    """Application lifespan: create tables + init data."""
+    db_path = "./sprint_agent.db"
+
+    if not os.path.exists(db_path):
+        logger.info("Fresh database detected, creating tables...")
+        await create_tables()
+    else:
+        logger.info("Existing database detected, ensuring tables...")
+        await create_tables()
+
+    # Load initial data if the database is empty
+    async with AsyncSessionLocal() as session:
+        await load_init_data(session)
+
     yield
+
+    # Shutdown: dispose engine
+    await async_engine.dispose()
 
 
 app = FastAPI(
     title="Sprint Agent Backend",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -32,6 +54,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include all routers (paths unchanged for front-end compatibility)
 app.include_router(sprint.router)
 app.include_router(tasks.router)
 app.include_router(members.router)

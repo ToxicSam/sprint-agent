@@ -1,6 +1,9 @@
+"""Async Retro router."""
+
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import crud
 import schemas
@@ -10,32 +13,42 @@ router = APIRouter(prefix="/api/retro", tags=["retro"])
 
 
 @router.get("/{sprint_id}", response_model=List[schemas.RetroResponse])
-def get_retro_items(sprint_id: str, db: Session = Depends(get_db)):
-    return crud.get_retros_by_sprint(db, sprint_id)
+async def get_retro_items(
+    sprint_id: str, db: AsyncSession = Depends(get_db)
+) -> List[schemas.RetroResponse]:
+    return await crud.get_retros_by_sprint(db, sprint_id)
 
 
 @router.post("", response_model=schemas.RetroResponse)
-def add_retro_item(retro: schemas.RetroCreate, db: Session = Depends(get_db)):
-    return crud.create_retro(db, retro)
+async def add_retro_item(
+    retro: schemas.RetroCreate, db: AsyncSession = Depends(get_db)
+) -> schemas.RetroResponse:
+    return await crud.create_retro(db, retro)
 
 
 @router.post("/vote", response_model=schemas.RetroResponse)
-def vote_retro(data: schemas.RetroVote, db: Session = Depends(get_db)):
-    item = crud.vote_retro(db, data.retro_id)
+async def vote_retro(
+    data: schemas.RetroVote, db: AsyncSession = Depends(get_db)
+) -> schemas.RetroResponse:
+    item = await crud.vote_retro(db, data.retro_id)
     if not item:
         raise HTTPException(status_code=404, detail="Retro item not found")
     return item
 
 
 @router.post("/rate", response_model=schemas.RetroRatingResponse)
-def rate_retro(rating: schemas.RetroRatingCreate, db: Session = Depends(get_db)):
-    return crud.create_retro_rating(db, rating)
+async def rate_retro(
+    rating: schemas.RetroRatingCreate, db: AsyncSession = Depends(get_db)
+) -> schemas.RetroRatingResponse:
+    return await crud.create_retro_rating(db, rating)
 
 
 @router.get("/{sprint_id}/report", response_model=schemas.RetroReport)
-def retro_report(sprint_id: str, db: Session = Depends(get_db)):
-    items = crud.get_retros_by_sprint(db, sprint_id)
-    ratings = crud.get_retro_ratings(db, sprint_id)
+async def retro_report(
+    sprint_id: str, db: AsyncSession = Depends(get_db)
+) -> schemas.RetroReport:
+    items = await crud.get_retros_by_sprint(db, sprint_id)
+    ratings = await crud.get_retro_ratings(db, sprint_id)
 
     liked = [i for i in items if i.category == "liked"]
     disliked = [i for i in items if i.category == "disliked"]

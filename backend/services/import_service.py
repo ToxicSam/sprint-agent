@@ -1,17 +1,21 @@
+"""Async init.json data loading service."""
+
 import json
 import os
-from typing import Dict, Any, Optional
-from datetime import datetime, date
-from sqlalchemy.orm import Session
+import uuid
+from datetime import date, datetime
+from typing import Optional
 
-import crud
-import schemas
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models import Sprint, Member, Task, DailyLog, Retro, RetroRating, AgentMessage, Config
 
 
-def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
+async def load_init_data(db: AsyncSession, file_path: str = "data/init.json") -> None:
     """Load init.json into the database if the DB is empty."""
-    if db.query(Sprint).first():
+    result = await db.execute(select(Sprint))
+    if result.scalars().first():
         return  # Database already has data
 
     if not os.path.exists(file_path):
@@ -31,7 +35,7 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             status=item.get("status", "active"),
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Members
     for item in data.get("members", []):
@@ -43,10 +47,20 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             avatar=item.get("avatar"),
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Tasks
     for item in data.get("tasks", []):
+        blocked_by_raw = item.get("blocked_by")
+        blocked_by = None
+        if isinstance(blocked_by_raw, list):
+            blocked_by = blocked_by_raw  # Native list for JSON column
+        elif isinstance(blocked_by_raw, str):
+            try:
+                blocked_by = json.loads(blocked_by_raw)
+            except json.JSONDecodeError:
+                blocked_by = None
+
         db.add(Task(
             id=item.get("id") or _new_id(),
             sprint_id=item["sprint_id"],
@@ -55,12 +69,12 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             status=item.get("status", "todo"),
             priority=item.get("priority"),
             story_points=item.get("story_points"),
-            blocked_by=json.dumps(item["blocked_by"]) if isinstance(item.get("blocked_by"), list) else item.get("blocked_by"),
+            blocked_by=blocked_by,
             description=item.get("description"),
             created_at=_parse_datetime(item.get("created_at")),
             updated_at=_parse_datetime(item.get("updated_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Daily logs
     for item in data.get("daily_logs", []):
@@ -75,7 +89,7 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             hours_spent=item.get("hours_spent"),
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Retros
     for item in data.get("retros", []):
@@ -87,7 +101,7 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             votes=item.get("votes", 0),
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Retro ratings
     for item in data.get("retro_ratings", []):
@@ -98,18 +112,28 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             score=item["score"],
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Agent messages
     for item in data.get("agent_messages", []):
+        context_raw = item.get("context")
+        context = None
+        if isinstance(context_raw, dict):
+            context = context_raw  # Native dict for JSON column
+        elif isinstance(context_raw, str):
+            try:
+                context = json.loads(context_raw)
+            except json.JSONDecodeError:
+                context = None
+
         db.add(AgentMessage(
             id=item.get("id") or _new_id(),
             role=item["role"],
             content=item["content"],
-            context=json.dumps(item["context"]) if isinstance(item.get("context"), dict) else item.get("context"),
+            context=context,
             created_at=_parse_datetime(item.get("created_at")),
         ))
-    db.commit()
+    await db.commit()
 
     # Config
     for item in data.get("config", []):
@@ -117,11 +141,10 @@ def load_init_data(db: Session, file_path: str = "data/init.json") -> None:
             key=item["key"],
             value=item.get("value"),
         ))
-    db.commit()
+    await db.commit()
 
 
 def _new_id() -> str:
-    import uuid
     return str(uuid.uuid4())
 
 

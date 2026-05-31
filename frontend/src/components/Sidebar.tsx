@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, CalendarDays, ClipboardList, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { preloadPage } from '@/App';
 
 const NAV_ITEMS = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -30,6 +31,8 @@ export default function Sidebar() {
             <Link
               key={item.path}
               to={item.path}
+              onMouseEnter={() => preloadPage(item.path)}
+              onFocus={() => preloadPage(item.path)}
               className={cn(
                 'relative flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors group',
                 isActive
