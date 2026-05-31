@@ -72,7 +72,7 @@ INTENT_PATTERNS: List[Tuple[str, List[str]]] = [
         r"retro\s+rating",
         r"sprint\s+score",
         # Chinese patterns
-        r"(?:给\s*)?(?: retro|回顾|迭代|sprint)\s*(?:评分|打分|评价)",
+        r"(?:给\s*)?(?:retro|回顾|迭代|sprint)\s*(?:评分|打分|评价)",
         r"评分\s*(?:retro|回顾|迭代|sprint)",
     ]),
     ("delete_task", [
@@ -126,6 +126,16 @@ def normalize_status(raw: str) -> str:
     return raw_lower
 
 
+# 预计算所有合法状态别名用于快速校验
+_ALL_STATUS_ALIASES: set = set()
+for _aliases in STATUS_ALIASES.values():
+    _ALL_STATUS_ALIASES.update(_aliases)
+
+def is_valid_status(raw: str) -> bool:
+    """Check if a status string is a known valid status."""
+    return raw.lower().strip() in _ALL_STATUS_ALIASES
+
+
 def classify_intent_regex(message: str) -> Tuple[str, Dict[str, Any]]:
     """Classify intent using regex patterns (fallback)."""
     text = message.lower().strip()
@@ -137,42 +147,23 @@ def classify_intent_regex(message: str) -> Tuple[str, Dict[str, Any]]:
                 groups = match.groups()
                 if intent == "move_task" and len(groups) >= 2:
                     raw_ref = groups[0]
-                    # Try to extract quoted title for multi-word task names
-                    quoted = re.search(r'["\'\u201c\u2018](.+?)["\'\u201d\u2019]', message)
-                    if quoted:
-                        entities["task_ref"] = quoted.group(1)
-                    else:
-                        entities["task_ref"] = raw_ref
-                    # Join remaining groups for multi-word status like "in progress"
-                    # CRITICAL FIX: Also include text after the regex match
-                    # because \S+ only captures one word (e.g., "in" not "in progress")
+                    entities["task_ref"] = extract_quoted_ref(message, raw_ref)
                     status_text = " ".join(groups[1:])
                     remaining = text[match.end():].strip()
+                    # Try to form valid 2-word status from remaining text
                     if remaining:
-                        # Append first word from remaining (e.g., "progress" after "in")
-                        first_word = remaining.split()[0] if remaining.split() else ""
-                        # Check if combined forms a known status alias
+                        first_word = remaining.split(maxsplit=1)[0]
                         combined = f"{status_text} {first_word}".strip()
-                        if combined in STATUS_ALIASES.get("progress", []) or \
-                           combined in STATUS_ALIASES.get("todo", []) or \
-                           combined in STATUS_ALIASES.get("done", []) or \
-                           combined in STATUS_ALIASES.get("paused", []):
+                        if is_valid_status(combined):
                             status_text = combined
-                        elif f"{status_text} {first_word}".strip() in ["in progress", "on hold"]:
-                            status_text = combined
-                    # Only take the first 2 words max
-                    status_words = status_text.split()
-                    if len(status_words) > 2:
-                        status_text = " ".join(status_words[:2])
+                    # Clamp to max 2 words
+                    words = status_text.split()
+                    if len(words) > 2:
+                        status_text = " ".join(words[:2])
                     entities["target_status"] = normalize_status(status_text)
                 elif intent in ("update_task", "delete_task", "standup_log") and groups:
                     raw_ref = groups[0]
-                    # Try to extract quoted title for multi-word task names
-                    quoted = re.search(r'["\'\u201c\u2018](.+?)["\'\u201d\u2019]', message)
-                    if quoted:
-                        entities["task_ref"] = quoted.group(1)
-                    else:
-                        entities["task_ref"] = raw_ref
+                    entities["task_ref"] = extract_quoted_ref(message, raw_ref)
                 return intent, entities
     return "general_chat", {}
 
@@ -405,6 +396,12 @@ async def resolve_task_ref(db: AsyncSession, ref: str, for_delete: bool = False)
         return result.scalars().first()
 
     return None
+
+
+def extract_quoted_ref(text: str, default: str = "") -> str:
+    """Extract a quoted string from text. Returns default if no quotes found."""
+    match = re.search(r'["\'\u201c\u2018](.+?)["\'\u201d\u2019]', text)
+    return match.group(1) if match else default
 
 
 def extract_task_title(message: str) -> str:

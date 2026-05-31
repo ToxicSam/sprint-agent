@@ -1,6 +1,5 @@
 """FastAPI async application with LLM-ready lifespan."""
 
-import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -10,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import async_engine, AsyncSessionLocal, create_tables
-from models import Base
 from services.import_service import load_init_data
 
 from routers import sprint, tasks, members, standup, retro, agent, settings
@@ -62,3 +60,14 @@ app.include_router(standup.router)
 app.include_router(retro.router)
 app.include_router(agent.router)
 app.include_router(settings.router)
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "path": str(request.url)},
+    )

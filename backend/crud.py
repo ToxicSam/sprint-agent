@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, and_, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import models
@@ -74,17 +75,20 @@ async def delete_sprint(db: AsyncSession, sprint_id: str) -> bool:
 
 
 async def get_sprint_stats(db: AsyncSession, sprint_id: str) -> Dict[str, Any]:
-    result = await db.execute(select(models.Task).filter(models.Task.sprint_id == sprint_id))
-    tasks = list(result.scalars().all())
-    total = len(tasks)
-    todo = sum(1 for t in tasks if t.status == "todo")
-    progress = sum(1 for t in tasks if t.status == "progress")
-    done = sum(1 for t in tasks if t.status == "done")
-    paused = sum(1 for t in tasks if t.status == "paused")
-    total_sp = sum(t.story_points or 0 for t in tasks)
-    completed_sp = sum(t.story_points or 0 for t in tasks if t.status == "done")
-    remaining = total_sp - completed_sp
-    rate = (completed_sp / total_sp * 100) if total_sp else 0.0
+    from sqlalchemy import case, func
+
+    result = await db.execute(
+        select(
+            func.count(models.Task.id).label("total"),
+            func.sum(case((models.Task.status == "todo", 1), else_=0)).label("todo"),
+            func.sum(case((models.Task.status == "progress", 1), else_=0)).label("progress"),
+            func.sum(case((models.Task.status == "done", 1), else_=0)).label("done"),
+            func.sum(case((models.Task.status == "paused", 1), else_=0)).label("paused"),
+            func.coalesce(func.sum(models.Task.story_points), 0).label("total_sp"),
+            func.coalesce(func.sum(case((models.Task.status == "done", models.Task.story_points), else_=0)), 0).label("completed_sp"),
+        ).filter(models.Task.sprint_id == sprint_id)
+    )
+    row = result.one()
 
     members_active_result = await db.execute(
         select(models.Task.assignee_id)
@@ -96,16 +100,20 @@ async def get_sprint_stats(db: AsyncSession, sprint_id: str) -> Dict[str, Any]:
     )
     members_active = len(members_active_result.scalars().all())
 
+    total_sp = float(row.total_sp or 0)
+    completed_sp = float(row.completed_sp or 0)
+    total = row.total or 0
+
     return {
         "total_tasks": total,
-        "todo": todo,
-        "progress": progress,
-        "done": done,
-        "paused": paused,
+        "todo": int(row.todo or 0),
+        "progress": int(row.progress or 0),
+        "done": int(row.done or 0),
+        "paused": int(row.paused or 0),
         "total_story_points": total_sp,
         "completed_story_points": completed_sp,
-        "remaining_story_points": remaining,
-        "completion_rate": round(rate, 2),
+        "remaining_story_points": round(total_sp - completed_sp, 2),
+        "completion_rate": round(completed_sp / total_sp * 100, 2) if total_sp else 0.0,
         "members_active": members_active,
     }
 
@@ -157,7 +165,11 @@ async def delete_member(db: AsyncSession, member_id: str) -> bool:
 # Task
 # ---------------------------------------------------------------------------
 async def get_task(db: AsyncSession, task_id: str) -> Optional[models.Task]:
-    result = await db.execute(select(models.Task).filter(models.Task.id == task_id))
+    result = await db.execute(
+        select(models.Task)
+        .filter(models.Task.id == task_id)
+        .options(selectinload(models.Task.assignee))
+    )
     return result.scalars().first()
 
 
@@ -169,7 +181,7 @@ async def get_tasks(
     skip: int = 0,
     limit: int = 200,
 ) -> List[models.Task]:
-    query = select(models.Task)
+    query = select(models.Task).options(selectinload(models.Task.assignee))
     if sprint_id:
         query = query.filter(models.Task.sprint_id == sprint_id)
     if status:
@@ -339,9 +351,10 @@ async def batch_upsert_daily_logs(
                 db_log = models.DailyLog(**log.model_dump())
                 db.add(db_log)
                 created += 1
+            await db.commit()  # Commit per log for safety
         except Exception as e:
+            await db.rollback()
             errors.append(str(e))
-    await db.commit()
     return schemas.DailyLogBatchResult(created=created, updated=updated, errors=errors)
 
 
