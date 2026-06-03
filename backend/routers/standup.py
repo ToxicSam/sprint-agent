@@ -37,6 +37,14 @@ async def batch_standup(
     return await crud.batch_upsert_daily_logs(db, batch)
 
 
+@router.get("/today", response_model=List[schemas.DailyLogResponse])
+async def get_today_logs(
+    sprint_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+) -> List[schemas.DailyLogResponse]:
+    return await crud.get_daily_logs(db, sprint_id=sprint_id, date=date.today())
+
+
 @router.get("/yesterday", response_model=List[schemas.DailyLogResponse])
 async def get_yesterday_logs(
     sprint_id: Optional[str] = None,

@@ -198,7 +198,7 @@ async def create_task(db: AsyncSession, task: schemas.TaskCreate) -> models.Task
     db_task = models.Task(**task_data)
     db.add(db_task)
     await db.commit()
-    await db.refresh(db_task)
+    await db.refresh(db_task, ["assignee"])
     return db_task
 
 
@@ -214,7 +214,7 @@ async def update_task(
         setattr(db_task, key, value)
     db_task.updated_at = datetime.utcnow()
     await db.commit()
-    await db.refresh(db_task)
+    await db.refresh(db_task, ["assignee"])
     return db_task
 
 
@@ -234,7 +234,7 @@ async def move_task(db: AsyncSession, task_id: str, status: str) -> Optional[mod
     db_task.status = status
     db_task.updated_at = datetime.utcnow()
     await db.commit()
-    await db.refresh(db_task)
+    await db.refresh(db_task, ["assignee"])
     return db_task
 
 
@@ -290,7 +290,7 @@ async def get_daily_logs(
     date: Optional[date] = None,
     member_id: Optional[str] = None,
 ) -> List[models.DailyLog]:
-    query = select(models.DailyLog)
+    query = select(models.DailyLog).options(selectinload(models.DailyLog.member))
     if sprint_id:
         query = query.filter(models.DailyLog.sprint_id == sprint_id)
     if date:
@@ -389,6 +389,15 @@ async def vote_retro(db: AsyncSession, retro_id: str) -> Optional[models.Retro]:
     return db_retro
 
 
+async def delete_retro(db: AsyncSession, retro_id: str) -> bool:
+    db_retro = await get_retro(db, retro_id)
+    if not db_retro:
+        return False
+    await db.delete(db_retro)
+    await db.commit()
+    return True
+
+
 async def create_retro_rating(
     db: AsyncSession, rating: schemas.RetroRatingCreate
 ) -> models.RetroRating:
@@ -430,6 +439,12 @@ async def get_agent_messages(db: AsyncSession, limit: int = 50) -> List[models.A
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def clear_agent_messages(db: AsyncSession) -> None:
+    from sqlalchemy import delete as sql_delete
+    await db.execute(sql_delete(models.AgentMessage))
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------

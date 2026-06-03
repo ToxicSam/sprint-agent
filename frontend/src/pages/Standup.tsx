@@ -22,7 +22,8 @@ import { useStore } from '@/store';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Member } from '@/types';
+import { getDailyLogs, createDailyLog, updateDailyLog } from '@/api/standup';
+import type { Member, DailyLog } from '@/types';
 
 // ------------------------------------------------------------------
 // Types
@@ -88,26 +89,21 @@ function saveDraft(date: string, rows: StandupRow[]) {
   }
 }
 
-function loadYesterdayLogs(date: string): Record<string, Partial<StandupRow>> {
-  try {
-    const yest = getYesterdayStr(date);
-    const raw = localStorage.getItem(draftKey(yest));
-    if (raw) {
-      const draft = JSON.parse(raw) as StandupDraft;
-      const map: Record<string, Partial<StandupRow>> = {};
-      for (const row of draft.rows) {
-        map[row.member.id] = {
-          planned: row.planned, // yesterday's planned = today's yesterday
-          completed: row.completed,
-          hours: row.hours,
-        };
-      }
-      return map;
-    }
-  } catch {
-    // ignore
+/**
+ * Build a yesterday-lookup map from API-fetched DailyLog[].
+ * Keyed by member_id, each entry carries the "planned" text which
+ * becomes today's "yesterday" column.
+ */
+function buildYesterdayMap(logs: DailyLog[]): Record<string, Partial<StandupRow>> {
+  const map: Record<string, Partial<StandupRow>> = {};
+  for (const log of logs) {
+    map[log.member_id] = {
+      planned: log.planned,
+      completed: log.completed,
+      hours: log.hours_spent,
+    };
   }
-  return {};
+  return map;
 }
 
 function createEmptyRows(members: Member[]): StandupRow[] {
@@ -207,6 +203,8 @@ export default function Standup() {
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  // Tracks existing DailyLog IDs so submit knows create vs update
+  const [existingLogIds, setExistingLogIds] = useState<Record<string, string>>({});
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [viewAll, setViewAll] = useState(true); // all members vs my tasks
 
@@ -221,25 +219,84 @@ export default function Standup() {
   // Init & Draft Loading
   // ----------------------------------------------------------------
   useEffect(() => {
-    const draft = loadDraft(selectedDate, members);
-    if (draft) {
-      setRows(draft);
-    } else {
-      // Try to fill "yesterday" from previous day's draft
-      const yestLogs = loadYesterdayLogs(selectedDate);
-      const fresh = createEmptyRows(members).map((row) => {
-        const yest = yestLogs[row.member.id];
-        if (yest) {
+    let cancelled = false;
+
+    async function loadData() {
+      // 1. Check localStorage draft first (good UX for unsaved work)
+      const draft = loadDraft(selectedDate, members);
+      if (draft) {
+        setRows(draft);
+        // Still fetch API data to know which logs already exist
+      }
+
+      // 2. Fetch logs from API for this sprint
+      if (!sprint?.id) return;
+      try {
+        const allLogs = await getDailyLogs(sprint.id);
+
+        if (cancelled) return;
+
+        // Map existing logs for the selected date
+        const todayLogs = allLogs.filter((l) => l.date === selectedDate);
+        const logIdMap: Record<string, string> = {};
+        for (const log of todayLogs) {
+          logIdMap[log.member_id] = log.id;
+        }
+        setExistingLogIds(logIdMap);
+
+        // If we already have a draft, prefer it (unsaved user work)
+        if (draft) return;
+
+        // 3. Build rows from API data for today
+        const todayLogMap: Record<string, DailyLog> = {};
+        for (const log of todayLogs) {
+          todayLogMap[log.member_id] = log;
+        }
+
+        // 4. Fetch yesterday's logs to populate the "yesterday" column
+        const yestStr = getYesterdayStr(selectedDate);
+        const yesterdayLogs = allLogs.filter((l) => l.date === yestStr);
+        const yestMap = buildYesterdayMap(yesterdayLogs);
+
+        const fresh = createEmptyRows(members).map((row) => {
+          const existing = todayLogMap[row.member.id];
+          const yest = yestMap[row.member.id];
           return {
             ...row,
-            yesterday: yest.planned || '',
+            yesterday: yest?.planned || '',
+            completed: existing?.completed || '',
+            planned: existing?.planned || '',
+            blockers: existing?.blockers || '',
+            hours: existing?.hours_spent ?? '',
           };
+        });
+        setRows(fresh);
+      } catch (err) {
+        console.error('Failed to load daily logs:', err);
+        toast.error('Failed to load standup data');
+
+        // Fallback: just use empty rows, try to populate yesterday from draft
+        if (!draft) {
+          const yestStr = getYesterdayStr(selectedDate);
+          const yestDraft = loadDraft(yestStr, members);
+          const yestMap: Record<string, Partial<StandupRow>> = {};
+          if (yestDraft) {
+            for (const row of yestDraft) {
+              yestMap[row.member.id] = { planned: row.planned };
+            }
+          }
+          const fresh = createEmptyRows(members).map((row) => ({
+            ...row,
+            yesterday: yestMap[row.member.id]?.planned || '',
+          }));
+          setRows(fresh);
         }
-        return row;
-      });
-      setRows(fresh);
+      }
     }
-  }, [selectedDate, members]);
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [selectedDate, members, sprint?.id]);
 
   // ----------------------------------------------------------------
   // Auto-save
@@ -276,21 +333,34 @@ export default function Standup() {
   // ----------------------------------------------------------------
   // Batch Operations
   // ----------------------------------------------------------------
-  const handleFillFromYesterday = useCallback(() => {
-    const yestLogs = loadYesterdayLogs(selectedDate);
-    let filled = 0;
-    setRows((prev) =>
-      prev.map((r) => {
-        const yest = yestLogs[r.member.id];
-        if (yest && !r.completed && yest.planned) {
-          filled++;
-          return { ...r, completed: yest.planned };
-        }
-        return r;
-      })
-    );
-    toast.success(`Filled ${filled} member${filled !== 1 ? 's' : ''} from yesterday`);
-  }, [selectedDate]);
+  const handleFillFromYesterday = useCallback(async () => {
+    if (!sprint?.id) {
+      toast.error('No sprint selected');
+      return;
+    }
+    try {
+      const yestStr = getYesterdayStr(selectedDate);
+      const allLogs = await getDailyLogs(sprint.id);
+      const yesterdayLogs = allLogs.filter((l) => l.date === yestStr);
+      const yestMap = buildYesterdayMap(yesterdayLogs);
+
+      let filled = 0;
+      setRows((prev) =>
+        prev.map((r) => {
+          const yest = yestMap[r.member.id];
+          if (yest && !r.completed && yest.planned) {
+            filled++;
+            return { ...r, completed: yest.planned };
+          }
+          return r;
+        })
+      );
+      toast.success(`Filled ${filled} member${filled !== 1 ? 's' : ''} from yesterday`);
+    } catch (err) {
+      console.error('Failed to load yesterday logs:', err);
+      toast.error('Failed to load yesterday data');
+    }
+  }, [selectedDate, sprint?.id]);
 
   const handleCopyYesterday = useCallback(() => {
     setRows((prev) =>
@@ -360,18 +430,56 @@ export default function Standup() {
     }
     if (hasError) return;
 
+    if (!sprint?.id) {
+      toast.error('No sprint selected — cannot submit');
+      return;
+    }
+
     setSubmitting(true);
 
-    // Simulate API call
-    await new Promise((res) => setTimeout(res, 600));
+    try {
+      // Submit each row that has content
+      const newLogIds: Record<string, string> = { ...existingLogIds };
 
-    const now = new Date().toISOString();
-    setSubmittedAt(now);
-    saveDraft(selectedDate, rows);
+      const promises = rows.map(async (r) => {
+        const hasContent = r.completed.trim() || r.planned.trim() || r.blockers.trim() || r.hours !== '';
+        if (!hasContent) return;
 
-    toast.success(`Standup submitted for ${formatDateLabel(selectedDate)}`);
-    setSubmitting(false);
-  }, [rows, selectedDate]);
+        const payload = {
+          sprint_id: sprint.id,
+          member_id: r.member.id,
+          date: selectedDate,
+          completed: r.completed,
+          planned: r.planned,
+          blockers: r.blockers,
+          hours_spent: r.hours === '' ? 0 : Number(r.hours),
+        };
+
+        const existingId = existingLogIds[r.member.id];
+        if (existingId) {
+          const updated = await updateDailyLog(existingId, payload);
+          newLogIds[r.member.id] = updated.id;
+        } else {
+          const created = await createDailyLog(payload);
+          newLogIds[r.member.id] = created.id;
+        }
+      });
+
+      await Promise.all(promises);
+
+      setExistingLogIds(newLogIds);
+      const now = new Date().toISOString();
+      setSubmittedAt(now);
+      saveDraft(selectedDate, rows);
+
+      toast.success(`Standup submitted for ${formatDateLabel(selectedDate)}`);
+    } catch (err) {
+      console.error('Failed to submit standup:', err);
+      toast.error('Failed to submit standup. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [rows, selectedDate, sprint?.id, existingLogIds]);
 
   // ----------------------------------------------------------------
   // Keyboard Navigation

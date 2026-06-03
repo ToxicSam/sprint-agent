@@ -26,8 +26,8 @@ def _wrap_result(result: dict) -> schemas.AgentActionResult:
     return schemas.AgentActionResult(**payload)
 
 
-@router.post("/message", response_model=schemas.AgentActionResult)
-async def agent_message(
+@router.post("/chat", response_model=schemas.AgentActionResult)
+async def agent_chat(
     msg: schemas.AgentMessageCreate,
     db: AsyncSession = Depends(get_db),
 ) -> schemas.AgentActionResult:
@@ -57,6 +57,12 @@ async def agent_history(
     db: AsyncSession = Depends(get_db),
 ) -> List[schemas.AgentMessageResponse]:
     return await crud.get_agent_messages(db, limit=50)
+
+
+@router.delete("/history")
+async def clear_agent_history(db: AsyncSession = Depends(get_db)) -> dict:
+    await crud.clear_agent_messages(db)
+    return {"deleted": True}
 
 
 @router.post("/action", response_model=schemas.AgentActionResult)

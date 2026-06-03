@@ -25,7 +25,7 @@ async def create_sprint(
     return await crud.create_sprint(db, sprint)
 
 
-@router.put("/{sprint_id}", response_model=schemas.SprintResponse)
+@router.patch("/{sprint_id}", response_model=schemas.SprintResponse)
 async def update_sprint(
     sprint_id: str, sprint: schemas.SprintUpdate, db: AsyncSession = Depends(get_db)
 ) -> schemas.SprintResponse:

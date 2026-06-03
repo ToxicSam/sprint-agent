@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '@/store';
 import { cn } from '@/lib/utils';
-import { Send, X, Bot, User, Sparkles, Wand2, FileText, BarChart3 } from 'lucide-react';
+import { Send, X, Bot, User, Sparkles, Wand2, FileText, BarChart3, Trash2 } from 'lucide-react';
+import { sendMessage, getMessageHistory, clearHistory } from '@/api/agent';
+import type { AgentMessage } from '@/types';
 
 export default function AgentPanel() {
   const agentPanelOpen = useStore(s => s.agentPanelOpen);
@@ -9,46 +11,76 @@ export default function AgentPanel() {
   const agentMessages = useStore(s => s.agentMessages);
   const agentTyping = useStore(s => s.agentTyping);
   const addAgentMessage = useStore(s => s.addAgentMessage);
+  const setAgentMessages = useStore(s => s.setAgentMessages);
+  const clearAgentMessages = useStore(s => s.clearAgentMessages);
   const setAgentTyping = useStore(s => s.setAgentTyping);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Load message history on mount
+  useEffect(() => {
+    let cancelled = false;
+    getMessageHistory()
+      .then(msgs => {
+        if (!cancelled && msgs.length > 0) {
+          setAgentMessages(msgs);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load message history:', err);
+      });
+    return () => { cancelled = true; };
+  }, [setAgentMessages]);
+
+  // Auto-scroll on new messages or typing indicator
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [agentMessages, agentTyping]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMsg = {
+  const handleSend = useCallback(async () => {
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+
+    // Optimistically add user message
+    const userMsg: AgentMessage = {
       id: `msg-${Date.now()}`,
-      role: 'user' as const,
-      content: input.trim(),
+      role: 'user',
+      content: trimmed,
       created_at: new Date().toISOString(),
     };
     addAgentMessage(userMsg);
     setInput('');
-
-    // Simulate agent response
+    setIsLoading(true);
     setAgentTyping(true);
-    setTimeout(() => {
-      setAgentTyping(false);
-      const responses = [
-        'I can help you organize this sprint. What would you like to focus on?',
-        'Based on the current board, you have several tasks in progress. Would you like me to suggest priorities?',
-        'I can help create tasks, analyze velocity, or prepare standup notes. What do you need?',
-        'Would you like me to summarize the current sprint progress?',
-      ];
-      const response = responses[Math.floor(Math.random() * responses.length)];
+
+    try {
+      const agentMsg = await sendMessage(trimmed);
+      addAgentMessage(agentMsg);
+    } catch (err) {
+      console.error('Failed to send message:', err);
       addAgentMessage({
-        id: `msg-${Date.now() + 1}`,
-        role: 'agent',
-        content: response,
+        id: `msg-error-${Date.now()}`,
+        role: 'system',
+        content: 'Sorry, something went wrong. Please try again.',
         created_at: new Date().toISOString(),
       });
-    }, 1500);
-  };
+    } finally {
+      setIsLoading(false);
+      setAgentTyping(false);
+    }
+  }, [input, isLoading, addAgentMessage, setAgentTyping]);
+
+  const handleClear = useCallback(async () => {
+    try {
+      await clearHistory();
+      clearAgentMessages();
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+    }
+  }, [clearAgentMessages]);
 
   return (
     <>
@@ -78,12 +110,23 @@ export default function AgentPanel() {
               <span className="font-semibold text-sm">Sprint Agent</span>
               <span className="w-2 h-2 bg-green-500 rounded-full" />
             </div>
-            <button
-              onClick={toggleAgentPanel}
-              className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))] transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {agentMessages.length > 0 && (
+                <button
+                  onClick={handleClear}
+                  className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))] transition-colors"
+                  title="Clear chat"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={toggleAgentPanel}
+                className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Quick actions */}
@@ -98,7 +141,8 @@ export default function AgentPanel() {
                 onClick={() => {
                   setInput(`Help me ${action.label.toLowerCase()}`);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-[hsl(var(--accent))] hover:bg-violet-500/10 hover:text-violet-600 transition-colors"
+                disabled={isLoading}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-[hsl(var(--accent))] hover:bg-violet-500/10 hover:text-violet-600 transition-colors disabled:opacity-40"
               >
                 <action.icon className="w-3 h-3" />
                 {action.label}
@@ -129,10 +173,14 @@ export default function AgentPanel() {
                   'w-6 h-6 rounded-full flex items-center justify-center shrink-0',
                   msg.role === 'user'
                     ? 'bg-[hsl(var(--accent))]'
+                    : msg.role === 'system'
+                    ? 'bg-red-500/20'
                     : 'bg-gradient-to-br from-violet-500 to-pink-500'
                 )}>
                   {msg.role === 'user'
                     ? <User className="w-3 h-3" />
+                    : msg.role === 'system'
+                    ? <X className="w-3 h-3 text-red-500" />
                     : <Bot className="w-3 h-3 text-white" />
                   }
                 </div>
@@ -140,6 +188,8 @@ export default function AgentPanel() {
                   'rounded-lg px-3 py-2 text-sm max-w-[85%]',
                   msg.role === 'user'
                     ? 'bg-violet-500 text-white'
+                    : msg.role === 'system'
+                    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
                     : 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
                 )}>
                   {msg.content}
@@ -170,12 +220,13 @@ export default function AgentPanel() {
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleSend();
                 }}
-                placeholder="Ask the agent..."
-                className="flex-1 h-9 px-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                placeholder={isLoading ? 'Waiting for response...' : 'Ask the agent...'}
+                disabled={isLoading}
+                className="flex-1 h-9 px-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-50"
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim()}
+                disabled={!input.trim() || isLoading}
                 className="h-9 w-9 flex items-center justify-center rounded-md bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-40 disabled:hover:bg-violet-500 transition-colors"
               >
                 <Send className="w-4 h-4" />

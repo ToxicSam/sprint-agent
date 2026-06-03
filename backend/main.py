@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import async_engine, AsyncSessionLocal, create_tables
+from database import async_engine, AsyncSessionLocal, create_tables, SQLALCHEMY_DATABASE_URL
 from services.import_service import load_init_data
 
 from routers import sprint, tasks, members, standup, retro, agent, settings
@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: create tables + init data."""
-    db_path = "./sprint_agent.db"
+    # Extract file path from SQLAlchemy URL for existence check
+    db_url = SQLALCHEMY_DATABASE_URL
+    if db_url.startswith("sqlite+aiosqlite:///"):
+        db_path = db_url.replace("sqlite+aiosqlite:///", "")
+    else:
+        db_path = None
 
     if not os.path.exists(db_path):
         logger.info("Fresh database detected, creating tables...")

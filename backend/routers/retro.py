@@ -36,6 +36,14 @@ async def vote_retro(
     return item
 
 
+@router.delete("/{item_id}")
+async def delete_retro_item(item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    deleted = await crud.delete_retro(db, item_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Retro item not found")
+    return {"deleted": True}
+
+
 @router.post("/rate", response_model=schemas.RetroRatingResponse)
 async def rate_retro(
     rating: schemas.RetroRatingCreate, db: AsyncSession = Depends(get_db)

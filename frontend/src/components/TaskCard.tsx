@@ -3,7 +3,13 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Task } from '@/types';
 import { useStore } from '@/store';
 import { cn } from '@/lib/utils';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface TaskCardProps {
   task: Task;
@@ -32,6 +38,7 @@ function getPriorityConfig(priority: number): { label: string; className: string
 
 export default function TaskCard({ task }: TaskCardProps) {
   const selectTask = useStore(s => s.selectTask);
+  const deleteTask = useStore(s => s.deleteTask);
   const members = useStore(s => s.members);
 
   const {
@@ -80,15 +87,30 @@ export default function TaskCard({ task }: TaskCardProps) {
               {priorityConfig.label}
             </span>
           )}
-          <button
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[hsl(var(--accent))] transition-all"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => {
-              e.stopPropagation();
-            }}
-          >
-            <MoreHorizontal className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[hsl(var(--accent))] transition-all"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+              >
+                <MoreHorizontal className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem onClick={() => selectTask(task.id)}>
+                <Pencil className="w-3.5 h-3.5 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => deleteTask(task.id)}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Title */}

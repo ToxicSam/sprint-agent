@@ -24,7 +24,7 @@ async def create_member(
     return await crud.create_member(db, member)
 
 
-@router.put("/{member_id}", response_model=schemas.MemberResponse)
+@router.patch("/{member_id}", response_model=schemas.MemberResponse)
 async def update_member(
     member_id: str, member: schemas.MemberUpdate, db: AsyncSession = Depends(get_db)
 ) -> schemas.MemberResponse:

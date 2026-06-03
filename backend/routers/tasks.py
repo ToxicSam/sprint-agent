@@ -29,7 +29,7 @@ async def create_task(
     return await crud.create_task(db, task)
 
 
-@router.put("/{task_id}", response_model=schemas.TaskResponse)
+@router.patch("/{task_id}", response_model=schemas.TaskResponse)
 async def update_task(
     task_id: str, task: schemas.TaskUpdate, db: AsyncSession = Depends(get_db)
 ) -> schemas.TaskResponse:

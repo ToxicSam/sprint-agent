@@ -1,10 +1,17 @@
 """Async SQLAlchemy database engine and session management."""
 
+import os
+
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from models import Base
 
-SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////tmp/sprint_agent.db"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "sqlite+aiosqlite:///./sprint_agent.db",
+)
+
+SQLALCHEMY_DATABASE_URL = DATABASE_URL
 
 async_engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,

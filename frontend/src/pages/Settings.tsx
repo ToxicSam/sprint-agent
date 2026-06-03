@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { Member, MemberRole } from '@/types';
+import { apiFetch } from '@/api/client';
 import { cn } from '@/lib/utils';
 import {
   Settings2,
@@ -732,83 +733,107 @@ function DataTab() {
     setValidationResult(validateJson(importData));
   }, [importData, validateJson]);
 
-  const handleImportReplace = useCallback(() => {
+  const handleImportReplace = useCallback(async () => {
     if (!validationResult?.valid) return;
     setImporting(true);
-    setTimeout(() => {
-      try {
-        localStorage.setItem('sprint_agent__api_board', importData);
-        setImporting(false);
-        setValidationResult(null);
-        setImportData('');
-        setImportFile('');
-        window.location.reload();
-      } catch {
-        setImporting(false);
-      }
-    }, 600);
+    try {
+      const parsed = JSON.parse(importData);
+      await apiFetch('/api/import', {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      });
+      setImporting(false);
+      setValidationResult(null);
+      setImportData('');
+      setImportFile('');
+      window.location.reload();
+    } catch (err) {
+      setImporting(false);
+      console.error('Import failed:', err);
+      alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }, [validationResult, importData]);
 
-  const handleExportJson = useCallback(() => {
-    const sprint = JSON.parse(localStorage.getItem('sprint_agent__api_board') || '{}');
-    const payload = {
-      sprint: sprint.sprint || { name: 'Sprint Export', goal: '', start_date: '', end_date: '', status: 'active', created_at: new Date().toISOString() },
-      members: sprint.members || [],
-      tasks: sprint.tasks || [],
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sprint-agent-data-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportJson = useCallback(async () => {
+    try {
+      const data = await apiFetch<Record<string, unknown>>('/api/export', { method: 'GET' });
+      const payload = {
+        sprint: (data as Record<string, unknown>).sprint || { name: 'Sprint Export', goal: '', start_date: '', end_date: '', status: 'active', created_at: new Date().toISOString() },
+        members: (data as Record<string, unknown>).members || [],
+        tasks: (data as Record<string, unknown>).tasks || [],
+        exportedAt: new Date().toISOString(),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sprint-agent-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export JSON failed:', err);
+      alert(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }, []);
 
-  const handleExportCsv = useCallback(() => {
-    const sprint = JSON.parse(localStorage.getItem('sprint_agent__api_board') || '{}');
-    const tasks = sprint.tasks || [];
-    const headers = ['id', 'title', 'status', 'priority', 'story_points', 'assignee_id', 'blocked_by', 'description'];
-    const rows = tasks.map((t: Record<string, unknown>) =>
-      headers.map((h) => {
-        const val = t[h];
-        if (Array.isArray(val)) return `"${val.join(',')}"`;
-        return `"${String(val || '').replace(/"/g, '\\"')}"`;
-      })
-    );
-    const csv = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sprint-agent-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportCsv = useCallback(async () => {
+    try {
+      const data = await apiFetch<Record<string, unknown>>('/api/export', { method: 'GET' });
+      const tasks = (data as Record<string, unknown>).tasks || [];
+      const headers = ['id', 'title', 'status', 'priority', 'story_points', 'assignee_id', 'blocked_by', 'description'];
+      const rows = (tasks as Record<string, unknown>[]).map((t) =>
+        headers.map((h) => {
+          const val = t[h];
+          if (Array.isArray(val)) return `"${val.join(',')}"`;
+          return `"${String(val || '').replace(/"/g, '\\"')}"`;
+        })
+      );
+      const csv = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sprint-agent-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export CSV failed:', err);
+      alert(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }, []);
 
-  const handleExportMarkdown = useCallback(() => {
-    const sprint = JSON.parse(localStorage.getItem('sprint_agent__api_board') || '{}');
-    const tasks = sprint.tasks || [];
-    let md = `# Sprint Report\n\n`;
-    md += `| ID | Title | Status | Priority | Points | Assignee |\n`;
-    md += `|---|---|---|---|---|---|\n`;
-    tasks.forEach((t: Record<string, unknown>) => {
-      md += `| ${t.id} | ${t.title} | ${t.status} | ${t.priority} | ${t.story_points || 0} | ${t.assignee_id || 'Unassigned'} |\n`;
-    });
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sprint-agent-report-${new Date().toISOString().slice(0, 10)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportMarkdown = useCallback(async () => {
+    try {
+      const data = await apiFetch<Record<string, unknown>>('/api/export', { method: 'GET' });
+      const tasks = (data as Record<string, unknown>).tasks || [];
+      let md = `# Sprint Report\n\n`;
+      md += `| ID | Title | Status | Priority | Points | Assignee |\n`;
+      md += `|---|---|---|---|---|---|\n`;
+      (tasks as Record<string, unknown>[]).forEach((t) => {
+        md += `| ${t.id} | ${t.title} | ${t.status} | ${t.priority} | ${t.story_points || 0} | ${t.assignee_id || 'Unassigned'} |\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sprint-agent-report-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export Markdown failed:', err);
+      alert(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }, []);
 
-  const handleResetDefault = useCallback(() => {
-    localStorage.removeItem('sprint_agent__api_board');
-    setResetDialogOpen(false);
-    window.location.reload();
+  const handleResetDefault = useCallback(async () => {
+    try {
+      await apiFetch('/api/settings/reset', { method: 'POST' });
+      setResetDialogOpen(false);
+      window.location.reload();
+    } catch (err) {
+      console.error('Reset failed:', err);
+      alert(`Reset failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }, []);
 
   return (
