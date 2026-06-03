@@ -307,7 +307,14 @@ class ConfigUpdate(BaseModel):
 # Import / Export
 # ---------------------------------------------------------------------------
 class ImportPayload(BaseModel):
-    data: Dict[str, Any]
+    sprints: List[Dict[str, Any]] = []
+    members: List[Dict[str, Any]] = []
+    tasks: List[Dict[str, Any]] = []
+    daily_logs: List[Dict[str, Any]] = []
+    retros: List[Dict[str, Any]] = []
+    retro_ratings: List[Dict[str, Any]] = []
+    agent_messages: List[Dict[str, Any]] = []
+    config: List[Dict[str, Any]] = []
 
 
 class ImportResult(BaseModel):

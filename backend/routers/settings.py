@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import crud
 import schemas
 from database import async_engine, get_db
-from models import Base
+from models import Base, Sprint, Member, Task, DailyLog, Retro, RetroRating, AgentMessage
 from services.agent_service import is_llm_configured
 from services.export_service import export_all
 from services.import_service import load_init_data
@@ -46,9 +46,41 @@ async def import_data(
 ) -> schemas.ImportResult:
     inserted: Dict[str, int] = {}
     errors: List[str] = []
-    # Simple pass-through; robust import would validate each entity
+
+    entity_map = {
+        "sprints": (Sprint, schemas.SprintCreate),
+        "members": (Member, schemas.MemberCreate),
+        "tasks": (Task, schemas.TaskCreate),
+        "daily_logs": (DailyLog, schemas.DailyLogCreate),
+        "retros": (Retro, schemas.RetroCreate),
+        "retro_ratings": (RetroRating, schemas.RetroRatingCreate),
+        "agent_messages": (AgentMessage, schemas.AgentMessageCreate),
+    }
+
+    for key, (model_cls, _) in entity_map.items():
+        items = getattr(payload, key, [])
+        if not items:
+            continue
+        count = 0
+        for item_data in items:
+            try:
+                obj = model_cls(**item_data)
+                db.add(obj)
+                count += 1
+            except Exception as e:
+                errors.append(f"{key}: {str(e)[:80]}")
+        inserted[key] = count
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        errors.append(f"Commit failed: {str(e)[:80]}")
+
     return schemas.ImportResult(
-        summary="Import not fully implemented in MVP", inserted=inserted, errors=errors
+        summary=f"Imported {sum(inserted.values())} records",
+        inserted=inserted,
+        errors=errors,
     )
 
 

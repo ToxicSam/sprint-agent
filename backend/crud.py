@@ -303,7 +303,9 @@ async def get_daily_logs(
 
 async def upsert_daily_log(db: AsyncSession, log: schemas.DailyLogCreate) -> models.DailyLog:
     result = await db.execute(
-        select(models.DailyLog).filter(
+        select(models.DailyLog)
+        .options(selectinload(models.DailyLog.member))
+        .filter(
             and_(
                 models.DailyLog.sprint_id == log.sprint_id,
                 models.DailyLog.member_id == log.member_id,
@@ -316,12 +318,12 @@ async def upsert_daily_log(db: AsyncSession, log: schemas.DailyLogCreate) -> mod
         for key, value in log.model_dump().items():
             setattr(existing, key, value)
         await db.commit()
-        await db.refresh(existing)
+        await db.refresh(existing, ["member"])
         return existing
     db_log = models.DailyLog(**log.model_dump())
     db.add(db_log)
     await db.commit()
-    await db.refresh(db_log)
+    await db.refresh(db_log, ["member"])
     return db_log
 
 
@@ -334,7 +336,9 @@ async def batch_upsert_daily_logs(
     for log in batch.logs:
         try:
             result = await db.execute(
-                select(models.DailyLog).filter(
+                select(models.DailyLog)
+                .options(selectinload(models.DailyLog.member))
+                .filter(
                     and_(
                         models.DailyLog.sprint_id == log.sprint_id,
                         models.DailyLog.member_id == log.member_id,
