@@ -1,6 +1,7 @@
 """Async Settings, Import/Export, and Board router."""
 
 import os
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -57,6 +58,28 @@ async def import_data(
         "agent_messages": (AgentMessage, schemas.AgentMessageCreate),
     }
 
+    def _coerce_dates(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert ISO date/datetime strings to Python objects for SQLAlchemy."""
+        out = dict(data)
+        for k, v in out.items():
+            if isinstance(v, str):
+                if k.endswith("_at") and "T" in v:
+                    try:
+                        out[k] = datetime.fromisoformat(v)
+                    except ValueError:
+                        pass
+                elif k.endswith("_date") and "T" not in v:
+                    try:
+                        out[k] = date.fromisoformat(v)
+                    except ValueError:
+                        pass
+                elif k == "date" and "T" not in v:
+                    try:
+                        out[k] = date.fromisoformat(v)
+                    except ValueError:
+                        pass
+        return out
+
     for key, (model_cls, _) in entity_map.items():
         items = getattr(payload, key, [])
         if not items:
@@ -64,7 +87,13 @@ async def import_data(
         count = 0
         for item_data in items:
             try:
-                obj = model_cls(**item_data)
+                coerced = _coerce_dates(item_data)
+                pk = coerced.get("id")
+                if pk:
+                    existing = await db.get(model_cls, pk)
+                    if existing:
+                        continue
+                obj = model_cls(**coerced)
                 db.add(obj)
                 count += 1
             except Exception as e:

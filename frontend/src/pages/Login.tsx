@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store';
+import { apiFetch } from '@/api/client';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ const ROLES = [
 export default function Login() {
   const navigate = useNavigate();
   const sprint = useStore((s) => s.sprint);
-  const setBoardData = useStore((s) => s.setBoardData);
+  const loadBoardData = useStore((s) => s.loadBoardData);
 
   // ── State ──────────────────────────────
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
@@ -119,7 +120,7 @@ export default function Login() {
       setImportErrors([]);
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
           const errors: ImportError[] = [];
@@ -151,50 +152,34 @@ export default function Login() {
             localStorage.setItem('sprint-agent-role', 'sm');
           }
 
-          // Build sprint and members
-          const sprintData = {
-            id: data.sprint.id || `s-${Date.now()}`,
-            name: data.sprint.name || 'Imported Sprint',
-            goal: data.sprint.goal || '',
-            start_date: data.sprint.start_date,
-            end_date: data.sprint.end_date,
-            status: data.sprint.status || 'active',
-            created_at: data.sprint.created_at || new Date().toISOString(),
-          };
+          // Persist to backend via the import API
+          try {
+            await apiFetch('/api/import', {
+              method: 'POST',
+              body: JSON.stringify(data),
+            });
+          } catch (apiErr) {
+            console.error('Import API failed:', apiErr);
+            setImportErrors([
+              {
+                field: 'backend',
+                message:
+                  apiErr instanceof Error
+                    ? apiErr.message
+                    : 'Failed to persist import to backend',
+              },
+            ]);
+            setShowImportErrors(true);
+            return;
+          }
 
-          const members = Array.isArray(data.members)
-            ? data.members.map((m: Record<string, unknown>, idx: number) => ({
-                id:
-                  typeof m.id === 'string'
-                    ? m.id
-                    : `m-${Date.now()}-${idx}`,
-                name: typeof m.name === 'string' ? m.name : 'Unknown',
-                role: (m.role as 'sm' | 'dev' | 'qa' | 'po') || 'dev',
-                capacity: typeof m.capacity === 'number' ? m.capacity : 80,
-              }))
-            : [];
+          // Refresh store from backend (single source of truth)
+          try {
+            await loadBoardData();
+          } catch (err) {
+            console.error('Failed to reload board data after import:', err);
+          }
 
-          const tasks = Array.isArray(data.tasks)
-            ? data.tasks.map((t: Record<string, unknown>, idx: number) => ({
-                id:
-                  typeof t.id === 'string'
-                    ? t.id
-                    : `t-${Date.now()}-${idx}`,
-                sprint_id: sprintData.id,
-                title: typeof t.title === 'string' ? t.title : 'Untitled',
-                assignee_id:
-                  typeof t.assignee_id === 'string' ? t.assignee_id : null,
-                status: (t.status as 'todo' | 'progress' | 'done' | 'paused') || 'todo',
-                priority: (t.priority as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10) || 5,
-                story_points: typeof t.story_points === 'number' ? t.story_points : 0,
-                blocked_by: Array.isArray(t.blocked_by) ? t.blocked_by : [],
-                description: typeof t.description === 'string' ? t.description : '',
-                created_at: t.created_at || new Date().toISOString(),
-                updated_at: t.updated_at || new Date().toISOString(),
-              }))
-            : [];
-
-          setBoardData(sprintData, members, tasks);
           navigate('/');
         } catch {
           setImportErrors([{ field: 'file', message: 'Invalid JSON format' }]);
@@ -203,7 +188,7 @@ export default function Login() {
       };
       reader.readAsText(file);
     },
-    [rememberRole, navigate, setBoardData]
+    [rememberRole, navigate, loadBoardData]
   );
 
   const handleFileChange = useCallback(

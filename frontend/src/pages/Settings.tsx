@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/table';
 import type { Member, MemberRole } from '@/types';
 import { apiFetch } from '@/api/client';
+import { getMembers, createMember, updateMember, deleteMember } from '@/api/members';
 import { cn } from '@/lib/utils';
 import {
   Settings2,
@@ -427,7 +428,9 @@ function GeneralTab({
 /* ================================================================== */
 
 function TeamTab({ members: initialMembers }: { members: Member[] }) {
+  const loadBoardData = useStore((s) => s.loadBoardData);
   const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Member>>({});
 
@@ -439,44 +442,88 @@ function TeamTab({ members: initialMembers }: { members: Member[] }) {
     capacity: '8',
   });
 
+  // Load members from API on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getMembers();
+        if (!cancelled) setMembers(data);
+      } catch (err) {
+        console.error('Failed to load members:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleStartEdit = useCallback((m: Member) => {
     setEditingId(m.id);
     setEditForm({ name: m.name, role: m.role, capacity: m.capacity });
   }, []);
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingId) return;
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === editingId
-          ? { ...m, ...editForm, capacity: Number(editForm.capacity) || m.capacity }
-          : m
-      )
-    );
-    setEditingId(null);
-  }, [editingId, editForm]);
+    setLoading(true);
+    try {
+      await updateMember(editingId, {
+        name: editForm.name,
+        role: editForm.role,
+        capacity: Number(editForm.capacity) || undefined,
+      });
+      await loadBoardData();
+      // Refresh local list from the store after loadBoardData
+      const data = await getMembers();
+      setMembers(data);
+      setEditingId(null);
+    } catch (err) {
+      console.error('Failed to update member:', err);
+      alert(`Failed to update member: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [editingId, editForm, loadBoardData]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
     setEditForm({});
   }, []);
 
-  const handleDeleteMember = useCallback((id: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== id));
-  }, []);
+  const handleDeleteMember = useCallback(async (id: string) => {
+    setLoading(true);
+    try {
+      await deleteMember(id);
+      await loadBoardData();
+      const data = await getMembers();
+      setMembers(data);
+    } catch (err) {
+      console.error('Failed to delete member:', err);
+      alert(`Failed to delete member: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadBoardData]);
 
-  const handleAddMember = useCallback(() => {
+  const handleAddMember = useCallback(async () => {
     if (!newMember.name.trim()) return;
-    const member: Member = {
-      id: `m-${Date.now()}`,
-      name: newMember.name.trim(),
-      role: newMember.role,
-      capacity: parseInt(newMember.capacity) || 8,
-    };
-    setMembers((prev) => [...prev, member]);
-    setNewMember({ name: '', role: 'dev', capacity: '8' });
-    setShowAddForm(false);
-  }, [newMember]);
+    setLoading(true);
+    try {
+      await createMember({
+        name: newMember.name.trim(),
+        role: newMember.role,
+        capacity: parseInt(newMember.capacity) || 8,
+      });
+      await loadBoardData();
+      const data = await getMembers();
+      setMembers(data);
+      setNewMember({ name: '', role: 'dev', capacity: '8' });
+      setShowAddForm(false);
+    } catch (err) {
+      console.error('Failed to add member:', err);
+      alert(`Failed to add member: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [newMember, loadBoardData]);
 
   return (
     <div className="space-y-4">

@@ -44,7 +44,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store';
-import type { Member, MemberRole } from '@/types';
+import { createSprint } from '@/api/sprint';
+import { createMember } from '@/api/members';
+import type { MemberRole } from '@/types';
 
 
 // ─── Types ───────────────────────────────────────────────
@@ -278,7 +280,7 @@ function MemberRow({
 
 export default function Planning() {
   const navigate = useNavigate();
-  const setBoardData = useStore((s) => s.setBoardData);
+  const loadBoardData = useStore((s) => s.loadBoardData);
   const existingMembers = useStore((s) => s.members);
   void useStore((s) => s.sprint);
 
@@ -319,6 +321,7 @@ export default function Planning() {
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmDesc, setConfirmDesc] = useState('');
   const jsonFileRef = useRef<HTMLInputElement>(null);
+  const [creating, setCreating] = useState(false);
 
   // ── Update workdays when dates change ─────
   useEffect(() => {
@@ -477,30 +480,50 @@ export default function Planning() {
     }
   }, [importText]);
 
-  const handleCreateSprint = useCallback(() => {
+  const handleCreateSprint = useCallback(async () => {
     if (!form.name.trim()) return;
     if (members.length === 0) return;
 
-    const sprintMembers: Member[] = members.map((m) => ({
-      id: m.id,
-      name: m.name,
-      role: m.role,
-      capacity: calcCapacity(form.workdays, m.coe),
-    }));
+    setCreating(true);
+    try {
+      // 1. Create the sprint via API
+      await createSprint({
+        name: form.name.trim(),
+        goal: form.goal.trim(),
+        start_date: form.startDate.toISOString().split('T')[0],
+        end_date: form.endDate.toISOString().split('T')[0],
+        status: 'active',
+      });
 
-    const sprint = {
-      id: `s-${Date.now()}`,
-      name: form.name.trim(),
-      goal: form.goal.trim(),
-      start_date: form.startDate.toISOString().split('T')[0],
-      end_date: form.endDate.toISOString().split('T')[0],
-      status: (form.status === 'active' ? 'active' : 'active') as 'active',
-      created_at: new Date().toISOString(),
-    };
+      // 2. Create each member via API
+      await Promise.all(
+        members.map((m) =>
+          createMember({
+            name: m.name,
+            role: m.role,
+            capacity: calcCapacity(form.workdays, m.coe),
+          })
+        )
+      );
 
-    setBoardData(sprint, sprintMembers, []);
-    navigate('/');
-  }, [form, members, navigate, setBoardData]);
+      // 3. Refresh the store from the backend
+      await loadBoardData();
+
+      navigate('/');
+    } catch (err) {
+      console.error('Failed to create sprint:', err);
+      setConfirmTitle('Create Sprint Error');
+      setConfirmDesc(
+        err instanceof Error
+          ? err.message
+          : 'Failed to create sprint. Please check backend connection and try again.'
+      );
+      setConfirmAction(() => () => setShowConfirmDialog(false));
+      setShowConfirmDialog(true);
+    } finally {
+      setCreating(false);
+    }
+  }, [form, members, navigate, loadBoardData]);
 
   const handleSaveTemplate = useCallback(() => {
     const template = {
@@ -532,7 +555,7 @@ export default function Planning() {
     0
   );
 
-  const canCreate = form.name.trim().length > 0 && members.length > 0 && members.every((m) => m.name.trim());
+  const canCreate = !creating && form.name.trim().length > 0 && members.length > 0 && members.every((m) => m.name.trim());
 
   // ── Render ────────────────────────────────
 
@@ -922,11 +945,11 @@ export default function Planning() {
             <Button
               size="sm"
               onClick={handleCreateSprint}
-              disabled={!canCreate}
+              disabled={!canCreate || creating}
               className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))]/90"
             >
               <Zap className="w-4 h-4 mr-1.5" />
-              Create Sprint
+              {creating ? 'Creating...' : 'Create Sprint'}
             </Button>
           </div>
         </div>
